@@ -1,0 +1,162 @@
+BANGCHAK
+ปตท.
+OR
+PTT
+DATE
+ทะเบียนรถ
+(KM)
+HI DIESEL
+BTH/LTR
+LITER
+VAT
+THB
+TAX INV NO.
+TOTAL THB
+ELECTRICITY
+TAX ID.
+53 หมู่ 2 ถนนจรัญสนิทวงศ์
+การไฟฟ้าฝ่ายผลิตแห่งประเทศไทย (กฟผ.)
+ตำบลบางกรวย อำเภอบางกรวย
+จังหวัดนนทบุรี 11130
+0994000244843
+Electricity Generating Authority of Thailand (EGAT)
+53 Moo 2 Charan Sanit Wong Road
+Bang Kruai
+Nonthaburi 11130
+การไฟฟ้าฝ่ายผลิต
+เลขประจำตัวผู้เสียภาษี
+เลขที่ใบกำกับภาษี
+ที่อยู่
+วันที่ขาย
+รวมเป็นเงิน
+VAT 7%
+ฉบับเดิมเลขที่
+ทะเบียน
+เลขที่
+ใบกำกับภาษี
+กฟผ
+การไฟฟ้าฝ่ายผลิต
+บางกรวย
+นนทบุรี
+จรัญสนิทวงศ์
+จำนวนเงิน
+บาท
+ลิตร
+ดีเซล
+แก๊สโซฮอล์
+บริษัท
+จำกัด
+สาขา
+สำนักงานใหญ่
+TAX INVOICE/RECEIPT
+ใบเสร็จรับเงิน/ใบกำกับภาษี
+ใบเสร็จรับเงิน/ใบกำกับภาษีอย่างย่อ
+ใบกำกับภาษีเต็มรูป
+FULL TAX INVOICE
+ABB
+SHORT FORM
+COPY
+CUSTOMER COPY
+สำเนา
+สำเนาลูกค้า
+VOID
+VOID SALE
+[VOID]
+ยกเลิก
+ต้นฉบับ
+ORIGINAL
+TID
+MID
+TRACE
+BATCH
+REF.
+STAN
+APPR
+AUTH
+TIME
+วันที่
+เวลา
+POS
+Machine ID
+รหัสเครื่อง
+AMOUNT
+TOTAL
+GRAND TOTAL
+NET AMOUNT
+PRICE
+UNIT PRICE
+ราคาต่อหน่วย
+ราคา
+VOLUME
+QUANTITY
+QTY
+ปริมาณ
+จำนวน
+DISCOUNT
+ส่วนลด
+CASH
+CHANGE
+CREDIT CARD
+FLEET CARD
+เงินสด
+เงินทอน
+LICENSE PLATE
+VEHICLE NO
+เลขทะเบียน
+ODOMETER
+MILEAGE
+เลขไมล์
+ระยะทาง
+กม.
+KM
+CUSTOMER
+CUST
+ลูกค้า
+ผู้ซื้อ
+SOLD TO
+TAX ID
+TAX #
+เลขประจำตัวผู้เสียภาษีอากร
+Bangchak Green Net
+Green Net
+J.K.R. STAR OIL
+STAR OIL
+CHOKSAMAN SERVICE
+Choksaman
+PONAROON
+Ponaroon
+Uthai Kul Petroleum
+Uthai Kul
+PTT RM
+Jiffy
+Ramintra
+Charansanitwong
+Vibhavadi
+Saraburi
+Rayong
+Lampang
+Kanchanaburi
+Ayutthaya
+HI DIESEL S
+HI DIESEL S B7
+DIESEL B7
+DIESEL B10
+DIESEL B20
+GASOHOL 91
+GASOHOL 95
+E20
+E85
+PREMIUM DIESEL
+PAGE
+หน้า
+BRANCH
+BR.
+สาขาที่
+รหัสสาขา
+TEL
+TELEPHONE
+โทร
+โทรศัพท์
+THANK YOU
+ขอบคุณ
+ยินดีต้อนรับ
