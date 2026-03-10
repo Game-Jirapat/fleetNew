@@ -8,13 +8,13 @@ exports.register = async (req, res) => {
         const { name, password, line_id, role } = req.body;
 
         // ตรวจสอบว่ามี user นี้หรือยัง
-        const existingUser = await User.findOne({ where: { name } });
+        const existingUser = await Users.findOne({ where: { name } });
         if (existingUser) return res.status(400).json({ message: "User already exists" });
 
         // เข้ารหัสรหัสผ่าน
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const newUser = await User.create({
+        const newUser = await Users.create({
             name,
             password: hashedPassword,
             line_id,
@@ -71,7 +71,7 @@ exports.magicLogin = async (req, res) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
         // 2. ค้นหาผู้ใช้ (ใช้ user_id ตาม Schema ใหม่)
-        const user = await User.findByPk(decoded.id);
+        const user = await Users.findByPk(decoded.id);
         if (!user) {
             return res.status(404).json({ success: false, message: 'User not found.' });
         }
@@ -108,7 +108,7 @@ exports.magicLogin = async (req, res) => {
 // 4. Get User Profile (ดึงข้อมูลตัวเอง)
 exports.getProfile = async (req, res) => {
     try {
-        const user = await User.findByPk(req.user.user_id, {
+        const user = await Users.findByPk(req.user.user_id, {
             attributes: { exclude: ['password'] } // ไม่ส่ง password กลับไป
         });
         res.json(user);
@@ -120,7 +120,7 @@ exports.getProfile = async (req, res) => {
 // [READ ALL] - สำหรับ Admin ดูรายชื่อผู้ใช้ทั้งหมด
 exports.getAllUsers = async (req, res) => {
     try {
-        const users = await User.findAll({
+        const users = await Users.findAll({
             attributes: { exclude: ['password'] }, // ไม่ส่ง password ออกไปเพื่อความปลอดภัย
             order: [['user_id', 'ASC']]
         });
@@ -133,7 +133,7 @@ exports.getAllUsers = async (req, res) => {
 // [READ ONE] - ดูรายละเอียดผู้ใช้รายบุคคล
 exports.getUserById = async (req, res) => {
     try {
-        const user = await User.findByPk(req.params.id, {
+        const user = await Users.findByPk(req.params.id, {
             attributes: { exclude: ['password'] }
         });
         if (!user) return res.status(404).json({ message: "User not found" });
@@ -147,7 +147,7 @@ exports.getUserById = async (req, res) => {
 exports.updateUser = async (req, res) => {
     try {
         const { name, role, line_id } = req.body;
-        const user = await User.findByPk(req.params.id);
+        const user = await Users.findByPk(req.params.id);
 
         if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -164,7 +164,7 @@ exports.deleteUser = async (req, res) => {
         return res.status(400).json({ message: "You cannot delete your own account" });
     }
     try {
-        const deleted = await User.destroy({
+        const deleted = await Users.destroy({
             where: { user_id: req.params.id }
         });
         if (deleted) {

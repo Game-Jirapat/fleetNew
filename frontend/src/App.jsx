@@ -6,6 +6,8 @@ import Login from './pages/LoginPage';
 import MagicLogin from './pages/MagicLogin';
 import Dashboard from './pages/AdminDashboard';
 import UploadReceipt from './pages/UploadReceipt';
+import ManageUser from './pages/ManageUsersPage';
+import Navbar from './assets/Navbar';
 
 /**
  * ProtectedRoute: ส่วนหุ้มสำหรับเส้นทางที่ต้องใช้การยืนยันตัวตน
@@ -32,25 +34,35 @@ function App() {
 
           {/* --- Protected Routes (ต้อง Login ก่อนเข้าถึง) --- */}
           <Route
-            path="/dashboard"
+            path="/admin/dashboard"
             element={
               <ProtectedRoute>
+                <Navbar />
                 <Dashboard />
               </ProtectedRoute>
             }
           />
-
+          <Route
+            path="/admin/users"
+            element={
+              <ProtectedRoute>
+                <Navbar />
+                <ManageUser />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/upload"
             element={
               <ProtectedRoute>
+                <Navbar />
                 <UploadReceipt />
               </ProtectedRoute>
             }
           />
 
           {/* Fallback: ถ้าเข้า Path มั่ว ให้ส่งไปหน้า Login */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="/*" element={<Navigate to="/login" replace />} />
         </Routes>
       </div>
     </BrowserRouter>

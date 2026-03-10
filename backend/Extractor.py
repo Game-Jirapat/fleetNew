@@ -1,45 +1,46 @@
 import re
+from datetime import datetime
 
 class Extractor:
     def __init__(self, text):
         self.text = text
-        # รวม Pattern ที่ใช้บ่อยไว้ที่นี่
         self.patterns = {
-            'plate': r'(\d[ก-ฮ]{2}\s?\d{1,4})',
+            # ปรับให้รองรับทะเบียนรถไทย เช่น 1กข 1234
+            'plate': r'(\d?[ก-ฮ]{2}\s?\d{1,4})',
             'date': r'(\d{2}/\d{2}/\d{4})|(\d{2}-\d{2}-\d{4})',
-            'amount': r'(?:TOTAL|รวมเป็นเงิน|ยอดรวม)\s*[:\.]?\s*([\d,]+\.\d{2})',
-            'tax_id': r'(?:TAX ID|เลขประจำตัวผู้เสียภาษี)\s*[:\.]?\s*(\d{13})'
+            'amount': r'(?:TOTAL|รวมเป็นเงิน|ยอดรวม|จำนวนเงิน)\s*[:\.]?\s*([\d,]+\.\d{2})',
         }
 
     def extract_all(self):
-        """ดึงข้อมูลเฉพาะที่จำเป็นตาม Schema ใหม่"""
         results = {
             'license_plate_no': self._find_pattern('plate'),
             'bill_date': self._format_date(self._find_pattern('date')),
             'amount': self._clean_number(self._find_pattern('amount')),
-            'tax_inv_no': self._find_pattern(r'(?:TAX INV NO|เลขที่ใบกำกับภาษี)\s*[:\.]?\s*([A-Z0-9\-]+)'),
             'gas_station': self._find_gas_station()
         }
         return results
 
-    def _find_pattern(self, key_or_pattern):
-        pattern = self.patterns.get(key_or_pattern, key_or_pattern)
+    def _find_pattern(self, key):
+        pattern = self.patterns.get(key)
         match = re.search(pattern, self.text, re.IGNORECASE | re.MULTILINE)
         return match.group(1) if match else None
 
     def _format_date(self, date_str):
         if not date_str: return None
-        # แปลงวันที่ให้เป็น Format YYYY-MM-DD สำหรับ Database
-        # (Logic ย่อสำหรับการตรวจสอบปี พ.ศ./ค.ศ. สามารถเพิ่มได้ที่นี่)
-        return date_str.replace('/', '-')
+        # ลบ / หรือ - ออกเพื่อจัดการ
+        clean_date = re.sub(r'[/-]', ' ', date_str).split()
+        if len(clean_date) == 3:
+            d, m, y = clean_date
+            y = int(y)
+            if y > 2500: y -= 543 # แปลง พ.ศ. เป็น ค.ศ.
+            return f"{y}-{m}-{d}"
+        return None
 
     def _clean_number(self, num_str):
-        if not num_str: return None
-        return float(num_str.replace(',', ''))
+        if not num_str: return 0.0
+        return float(re.sub(r'[^\d.]', '', num_str))
 
     def _find_gas_station(self):
-        stations = ['PTT', 'BANGCHAK', 'SHELL', 'CALTEX', 'OR']
-        for station in stations:
-            if station in self.text.upper():
-                return station
+        for s in ['PTT', 'OR', 'BANGCHAK', 'SHELL', 'CALTEX']:
+            if s in self.text.upper(): return s
         return "Unknown"

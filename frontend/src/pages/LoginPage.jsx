@@ -14,7 +14,7 @@ const Login = () => {
             const response = await api.post('/users/login', { name, password });
             localStorage.setItem('token', response.data.token);
             localStorage.setItem('user', JSON.stringify(response.data.user));
-            navigate('/dashboard');
+            navigate('/admin/dashboard');
         } catch (err) {
             alert("Login Failed: " + (err.response?.data?.message || "Error"));
         }

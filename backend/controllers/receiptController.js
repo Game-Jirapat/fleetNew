@@ -62,8 +62,6 @@ exports.processReceipt = async (req, res) => {
     pythonProcess.stdin.end();
 
     pythonProcess.on("close", async (code) => {
-      console.log(`🏁 Python process exited with code: ${code}`);
-
       if (code !== 0) {
         console.error("❌ Python Error:", pythonError);
         return res.status(500).json({ error: "Python OCR failed", details: pythonError });
@@ -71,36 +69,33 @@ exports.processReceipt = async (req, res) => {
 
       try {
         const parsedResult = JSON.parse(pythonData);
-        console.log("📝 OCR Parsed Data:", parsedResult.parsed_data);
+        const ocr = parsedResult.parsed_data; // ดึงก้อนข้อมูลที่ Clean แล้ว
 
-        // --- STEP 3: Save to PostgreSQL (New Schema) ---
         console.log("💾 Step 3: Saving to Database...");
 
-        // จัดการวันที่ให้เป็น Format ที่ DB ยอมรับ (YYYY-MM-DD)
-        const billDate = parsedResult.parsed_data?.transactionDate || new Date();
+        // จัดการวันที่ให้เป็น Format YYYY-MM-DD
+        const billDate = ocr?.bill_date || new Date();
 
         const newReceipt = await Receipts.create({
           user_id: userId,
-          license_plate_no: parsedResult.parsed_data?.plateNo || "Unknown",
-          bill_date: parsedResult.parsed_data?.transactionDate || new Date(),
-          og_pic: og_pic_url,// URL จาก PHP
-          framed_pic: parsedResult.debug_image,// Base64 หรือ Path รูปตีกรอบจาก Python
-          approval: 'Pending'// ค่าเริ่มต้นตาม ENUM ใหม่ 
+          license_plate_no: ocr?.license_plate_no || "Unknown", // แก้ให้ตรงกับ Extractor ใหม่
+          bill_date: billDate,
+          og_pic: og_pic_url,
+          framed_pic: parsedResult.debug_image, // Base64 จาก Python
+          approval: 'Pending'
         });
 
         console.log(`✨ Receipt saved! ID: ${newReceipt.receipt_id}`);
 
-        // 4. ส่งผลลัพธ์กลับไปให้ React Frontend
         res.status(200).json({
           message: "Receipt processed and saved successfully!",
-          data: newReceipt, // ข้อมูลที่บันทึกลง DB
-          parsed_data: parsedResult.parsed_data, // ข้อมูลดิบจาก OCR สำหรับหน้า Preview
-          debug_image: parsedResult.debug_image  // รูปตีกรอบให้ User ดู 
+          data: newReceipt,
+          parsed_data: ocr,
+          debug_image: parsedResult.debug_image
         });
 
       } catch (jsonErr) {
         console.error("❌ JSON Parse Error:", jsonErr.message);
-        console.error("Raw Python Output:", pythonData);
         res.status(500).json({ error: "Failed to parse OCR results", details: jsonErr.message });
       }
     });
@@ -114,7 +109,7 @@ exports.processReceipt = async (req, res) => {
 // [READ ALL] - ดึงรายการทั้งหมดพร้อมข้อมูล User
 exports.getAllReceipts = async (req, res) => {
   try {
-    const receipts = await Receipt.findAll({
+    const receipts = await Receipts.findAll({
       order: [['created_at', 'DESC']],
       include: [{
         model: Users,

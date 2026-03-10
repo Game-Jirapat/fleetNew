@@ -18,42 +18,34 @@ if platform.system() == 'Windows':
 
 def process_ocr():
     try:
-        # 2. รับ Image Buffer จาก Node.js (stdin)
         image_data = sys.stdin.buffer.read()
-        if not image_data:
-            print(json.dumps({"error": "No image data received"}, ensure_ascii=False))
-            return
-
-        # แปลงเป็น OpenCV Image
         nparr = np.frombuffer(image_data, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
         if img is None:
-            print(json.dumps({"error": "Failed to decode image"}, ensure_ascii=False))
+            print(json.dumps({"error": "Decode failed"}))
             return
 
-        # 3. Pre-processing เบื้องต้น (Grayscale)
+        # --- 🛠️ เพิ่ม Image Enhancement ---
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # ทำ Otsu's thresholding เพื่อให้ตัวอักษรชัดเจนขึ้น
+        _, processed_img = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         
-        # 4. ทำ OCR (ภาษาไทย + อังกฤษ)
-        # config='--psm 3' สำหรับใบเสร็จทั่วไป หรือ '6' สำหรับข้อความที่เป็นบล็อก
-        extracted_text = pytesseract.image_to_string(gray, lang='tha+eng', config='--psm 3')
+        # รัน OCR
+        extracted_text = pytesseract.image_to_string(processed_img, lang='tha+eng', config='--psm 3')
 
-        # 5. ใช้ Extractor (เวอร์ชัน Clean) ดึงข้อมูลที่จำเป็น
         extractor = Extractor(extracted_text)
         parsed_data = extractor.extract_all()
 
-        # 6. สร้าง Debug Image (ตัวอย่างการตีกรอบ หรือส่งรูป Gray กลับไปดู)
-        # ในที่นี้เราจะส่งรูป Gray กลับไปเพื่อประหยัด Bandwidth
-        _, buffer = cv2.imencode('.jpg', gray)
+        # แปลงรูปที่ผ่านการ Threshold แล้วส่งกลับ (Debug Image)
+        _, buffer = cv2.imencode('.jpg', processed_img)
         debug_base64 = base64.b64encode(buffer).decode('utf-8')
 
-        # 7. ส่งผลลัพธ์กลับไปหา Node.js
         output = {
             "status": "success",
             "extracted_text": extracted_text,
             "parsed_data": parsed_data,
-            "debug_image": debug_base64  # ส่งค่านี้ไปเก็บใน framed_pic
+            "debug_image": debug_base64 if 'debug_base64' in locals() else "" # ส่ง String ว่างแทน null
         }
         
         print(json.dumps(output, ensure_ascii=False))
