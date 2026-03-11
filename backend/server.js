@@ -2,7 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
-const db = require("./models"); // ดึง Sequelize models มาใช้งาน
+const db = require("./models");
 
 // Import Routes (อ้างอิงตามที่คุณมีในโครงสร้างเดิม)
 const receiptRoutes = require("./routes/receiptRoutes");
@@ -51,9 +51,9 @@ app.use((req, res) => {
 // --- 5. Global Error Handler ---
 app.use((err, req, res, next) => {
   console.error("Server Error:", err.stack);
-  res.status(500).json({ 
-    success: false, 
-    message: "Something went wrong on the server!" 
+  res.status(500).json({
+    success: false,
+    message: "Something went wrong on the server!"
   });
 });
 

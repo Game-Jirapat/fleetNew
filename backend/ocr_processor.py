@@ -36,10 +36,15 @@ def process_ocr():
 
         extractor = Extractor(extracted_text)
         parsed_data = extractor.extract_all()
-
+        
+        debug_base64 = ""
         # แปลงรูปที่ผ่านการ Threshold แล้วส่งกลับ (Debug Image)
-        _, buffer = cv2.imencode('.jpg', processed_img)
-        debug_base64 = base64.b64encode(buffer).decode('utf-8')
+        try:
+        # แปลงรูปที่ผ่านการประมวลผลเป็น Base64
+            _, buffer = cv2.imencode('.jpg', processed_img)
+            debug_base64 = base64.b64encode(buffer).decode('utf-8')
+        except:
+            pass
 
         output = {
             "status": "success",

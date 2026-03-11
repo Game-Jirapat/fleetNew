@@ -7,6 +7,7 @@ import MagicLogin from './pages/MagicLogin';
 import Dashboard from './pages/AdminDashboard';
 import UploadReceipt from './pages/UploadReceipt';
 import ManageUser from './pages/ManageUsersPage';
+import ManageReceipts from './pages/ManageReceipts';
 import Navbar from './assets/Navbar';
 
 /**
@@ -48,6 +49,15 @@ function App() {
               <ProtectedRoute>
                 <Navbar />
                 <ManageUser />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/receipts"
+            element={
+              <ProtectedRoute>
+                <Navbar />
+                <ManageReceipts />
               </ProtectedRoute>
             }
           />

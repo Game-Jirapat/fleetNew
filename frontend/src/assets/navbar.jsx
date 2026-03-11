@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { LogOut, User, Bell, Menu, X, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, Upload, Users, ReceiptText } from 'lucide-react';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const navigate = useNavigate();
-  
+
   // ดึงข้อมูล User จาก localStorage (ที่เก็บไว้ตอน Login)
   const user = JSON.parse(localStorage.getItem('user')) || { name: 'Admin', role: 'Staff' };
 
@@ -34,10 +35,10 @@ const Navbar = () => {
             <button className="p-2 text-gray-400 hover:text-blue-600 transition-colors">
               <Bell size={20} />
             </button>
-            
+
             <div className="relative">
-              <button 
-                onClick={() => setShowProfile(!showProfile)}
+              <button
+                onClick={() => setShowMenu(!showMenu)}
                 className="flex items-center space-x-3 p-2 rounded-xl hover:bg-gray-50 transition-all"
               >
                 <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
@@ -47,21 +48,41 @@ const Navbar = () => {
                   <p className="text-sm font-bold text-gray-800 leading-none">{user.name}</p>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">{user.role}</p>
                 </div>
-                <ChevronDown size={14} className={`text-gray-400 transition-transform ${showProfile ? 'rotate-180' : ''}`} />
+                <ChevronDown size={14} className={`text-gray-400 transition-transform ${showMenu ? 'rotate-180' : ''}`} />
               </button>
 
               {/* Profile Dropdown */}
-              {showProfile && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 animate-in fade-in slide-in-from-top-2">
-                  <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center">
-                    <User size={16} className="mr-2" /> My Profile
-                  </button>
+              {showMenu && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 animate-in fade-in slide-in-from-top-2">
+
+                  {/* 1. Dashboard */}
+                  <Link to="/admin/dashboard" className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center transition-colors">
+                    <LayoutDashboard size={18} className="mr-3 text-gray-400" /> Dashboard
+                  </Link>
+
+                  {/* 2. Upload Receipt */}
+                  <Link to="/upload" className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center transition-colors">
+                    <Upload size={18} className="mr-3 text-gray-400" /> Upload Receipt
+                  </Link>
+
+                  {/* 3. Manage Receipts */}
+                  <Link to="/admin/receipts" className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center transition-colors">
+                    <ReceiptText size={18} className="mr-3 text-gray-400" /> Manage Receipts
+                  </Link>
+
+                  {/* 4. Manage Users */}
+                  <Link to="/admin/users" className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center transition-colors">
+                    <Users size={18} className="mr-3 text-gray-400" /> Manage Users
+                  </Link>
+
                   <hr className="my-2 border-gray-50" />
-                  <button 
+
+                  {/* 5. Sign Out */}
+                  <button
                     onClick={handleLogout}
-                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center font-bold"
+                    className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center font-bold transition-colors"
                   >
-                    <LogOut size={16} className="mr-2" /> Sign Out
+                    <LogOut size={18} className="mr-3" /> Sign Out
                   </button>
                 </div>
               )}

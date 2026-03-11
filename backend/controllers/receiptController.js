@@ -6,48 +6,40 @@ const FormData = require("form-data");
 
 const PHP_API_URL = "https://ecar.egat.co.th//up_pic/upload.php";
 
+const uploadToPHP = async (buffer, filename, mimetype) => {
+  const formData = new FormData();
+  formData.append("image", buffer, { filename, contentType: mimetype });
+
+  const response = await axios.post(PHP_API_URL, formData, {
+    headers: formData.getHeaders(),
+    timeout: 30000,
+  });
+  return response.data.imageUrl;
+};
+
 // [CREATE] - ประมวลผลและบันทึกใบเสร็จ
 exports.processReceipt = async (req, res) => {
-  console.log("=== [START] Processing Receipt ===");
-
-  // 1. ตรวจสอบไฟล์ที่อัปโหลด
-  if (!req.file) {
-    console.error("❌ Error: No image file received in request.");
-    return res.status(400).json({ error: "No image file uploaded." });
-  }
-
-  const userId = req.user?.user_id || 1; // ใช้ user_id ตาม Schema ใหม่ [cite: 1]
-  const receiptType = req.body.type || '1'; // '1' สำหรับ Thermal, '2' สำหรับ A4
-  const receiptImageBuffer = req.file.buffer;
-  const originalFilename = req.file.originalname;
-
-  console.log(`📸 File: ${originalFilename} | Type: ${receiptType} | Users: ${userId}`);
-
   try {
-    // --- STEP 1: Upload to PHP Storage (ได้ URL รูปต้นฉบับ) ---
-    console.log("🛰️ Step 1: Uploading to PHP API...");
-    const phpFormData = new FormData();
-    phpFormData.append("image", receiptImageBuffer, {
-      filename: originalFilename,
-      contentType: req.file.mimetype,
-    });
+    const userId = req.user?.user_id || 1;
+    const originalBuffer = req.file.buffer;
+    const originalName = req.file.originalname;
 
-    const uploadResponse = await axios.post(PHP_API_URL, phpFormData, {
-      headers: phpFormData.getHeaders(),
-      timeout: 30000,
-    });
+    // ✅ 1. เพิ่มการประกาศตัวแปร receiptType (รับจาก Frontend หรือ Default เป็น '1')
+    const receiptType = req.body.type || '1';
 
-    const og_pic_url = uploadResponse.data.imageUrl;
-    console.log(`✅ Image uploaded to PHP: ${og_pic_url}`);
+    // --- STEP 1: Upload Original Image ---
+    console.log("🛰️ Step 1: Uploading Original to PHP...");
+    const og_pic_url = await uploadToPHP(originalBuffer, originalName, req.file.mimetype);
 
     // --- STEP 2: Process with Python OCR ---
     console.log("🐍 Step 2: Starting Python OCR...");
     const pythonScriptPath = path.join(__dirname, "..", "ocr_processor.py");
     const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
 
+    // ✅ 2. แก้ไขให้ใช้ originalBuffer แทน receiptImageBuffer ที่ไม่ได้ประกาศไว้
     const pythonProcess = spawn(pythonCommand, [
       pythonScriptPath,
-      originalFilename,
+      originalName,
       receiptType
     ]);
 
@@ -58,30 +50,42 @@ exports.processReceipt = async (req, res) => {
     pythonProcess.stderr.on("data", (data) => { pythonError += data.toString(); });
 
     // ส่ง Buffer รูปภาพเข้า Python ทาง stdin
-    pythonProcess.stdin.write(receiptImageBuffer);
+    pythonProcess.stdin.write(originalBuffer);
     pythonProcess.stdin.end();
 
     pythonProcess.on("close", async (code) => {
-      if (code !== 0) {
-        console.error("❌ Python Error:", pythonError);
-        return res.status(500).json({ error: "Python OCR failed", details: pythonError });
-      }
+      if (code !== 0) return res.status(500).json({ error: "Python failed", details: pythonError });
 
       try {
         const parsedResult = JSON.parse(pythonData);
-        const ocr = parsedResult.parsed_data; // ดึงก้อนข้อมูลที่ Clean แล้ว
+        const ocr = parsedResult.parsed_data;
+        const framedBase64 = parsedResult.debug_image;
 
-        console.log("💾 Step 3: Saving to Database...");
+        let framed_pic_url = og_pic_url; // ✅ ตั้งค่า Default เป็นรูปต้นฉบับ (Fallback)
 
-        // จัดการวันที่ให้เป็น Format YYYY-MM-DD
-        const billDate = ocr?.bill_date || new Date();
+        // ถ้ามี Base64 ส่งมาจาก Python จริง ถึงจะทำการอัปโหลด
+        if (framedBase64 && framedBase64.length > 0) {
+          console.log("🛰️ Step 3: Uploading Framed image to PHP...");
+          try {
+            const framedBuffer = Buffer.from(framedBase64, 'base64');
+            framed_pic_url = await uploadToPHP(
+              framedBuffer,
+              `framed_${originalName}`,
+              'image/jpeg'
+            );
+          } catch (uploadErr) {
+            console.warn("⚠️ Warning: Framed upload failed, using original pic instead.");
+          }
+        }
 
+        // --- STEP 4: Save to Database ---
+        // ตอนนี้ framed_pic_url จะมีค่าเสมอ (ไม่เป็น URL ใหม่ ก็เป็น URL เดิม)
         const newReceipt = await Receipts.create({
           user_id: userId,
-          license_plate_no: ocr?.license_plate_no || "Unknown", // แก้ให้ตรงกับ Extractor ใหม่
-          bill_date: billDate,
+          license_plate_no: ocr?.license_plate_no || "Unknown",
+          bill_date: ocr?.bill_date || new Date(),
           og_pic: og_pic_url,
-          framed_pic: parsedResult.debug_image, // Base64 จาก Python
+          framed_pic: framed_pic_url,
           approval: 'Pending'
         });
 
@@ -90,13 +94,12 @@ exports.processReceipt = async (req, res) => {
         res.status(200).json({
           message: "Receipt processed and saved successfully!",
           data: newReceipt,
-          parsed_data: ocr,
-          debug_image: parsedResult.debug_image
+          parsed_data: ocr
         });
 
       } catch (jsonErr) {
-        console.error("❌ JSON Parse Error:", jsonErr.message);
-        res.status(500).json({ error: "Failed to parse OCR results", details: jsonErr.message });
+        console.error("❌ JSON/Processing Error:", jsonErr.message);
+        res.status(500).json({ error: "Processing failed", details: jsonErr.message });
       }
     });
 
@@ -113,13 +116,14 @@ exports.getAllReceipts = async (req, res) => {
       order: [['created_at', 'DESC']],
       include: [{
         model: Users,
-        as: 'user',
+        as: 'users',
         attributes: ['user_id', 'name', 'role']
       }]
     });
     res.status(200).json(receipts);
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch receipts" });
+    console.error("❌ Database Error Details:", error); // ดูใน Terminal ของ Node.js
+    res.status(500).json({ error: error.message }); // ส่ง Error จริงไปที่ Postman/Browser
   }
 };
 
