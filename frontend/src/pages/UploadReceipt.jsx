@@ -1,230 +1,276 @@
-import React, { useState, useRef, useCallback, useMemo } from 'react';
-import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
-import api from '../api/axios';
-import { UploadCloud, Crop as CropIcon, Search, AlertCircle, FileText } from 'lucide-react';
-
-// ฟังก์ชัน Helper สำหรับสร้าง Aspect Ratio (ถ้าต้องการ Fix เช่น 3:4)
-function centerAspectCrop(mediaWidth, mediaHeight, aspect) {
-  return centerCrop(
-    makeAspectCrop({ unit: '%', width: 90 }, aspect, mediaWidth, mediaHeight),
-    mediaWidth, mediaHeight
-  );
-}
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import Cropper from 'react-easy-crop';
+import { Upload, Scissors, Cpu, Save, AlertCircle, CheckCircle2, RotateCcw, FileText } from 'lucide-react';
+import api from '../api/axios'; // ใช้ api instance ที่เราสร้างไว้
+import getCroppedImg from '../utils/cropImage';
 
 const UploadReceipt = () => {
-  const [imgSrc, setImgSrc] = useState(''); // รูปต้นฉบับ (Base64)
-  const [crop, setCrop] = useState(); // สถานะการ Crop
-  const [completedCrop, setCompletedCrop] = useState(); // Area ที่ Crop เสร็จแล้ว
-  const imgRef = useRef(null); // อ้างอิงถึง Element รูปภาพ
+  const navigate = useNavigate();
+  const fileInputRef = useRef(null);
 
-  const [result, setResult] = useState(null); // ผลลัพธ์จาก API
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  // --- States ---
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [isError, setIsError] = useState(false);
+  const [receiptType, setReceiptType] = useState('1');
+  const [debugImage, setDebugImage] = useState(null);
+  const [extractedText, setExtractedText] = useState('');
+  const [parsedData, setParsedData] = useState(null);
 
-  // 1. เลือกไฟล์และแสดงรูปต้นฉบับ
-  const onSelectFile = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setCrop(undefined); // Reset Crop เก่า
-      const reader = new FileReader();
-      reader.addEventListener('load', () => setImgSrc(reader.result?.toString() || ''));
-      reader.readAsDataURL(e.target.files[0]);
+  // --- Cropper States ---
+  const [showCropper, setShowCropper] = useState(false);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [aspect, setAspect] = useState('free');
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+
+  // --- Editable Fields ---
+  const [editableFields, setEditableFields] = useState({
+    plateNo: '', transactionDate: '', egatAddress: '', egatTaxId: ''
+  });
+
+  // --- Handlers ---
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedFile(file);
+      setImagePreviewUrl(URL.createObjectURL(file));
+      setStatusMessage(`เลือกไฟล์: ${file.name}`);
+      setIsError(false);
+      setParsedData(null); // Reset ข้อมูลเก่า
+      setDebugImage(null);
     }
   };
 
-  // 2. เมื่อรูปโหลดเสร็จ (ตั้งค่า Crop เริ่มต้น)
-  const onImageLoad = (e) => {
-    // const { width, height } = e.currentTarget;
-    // setCrop(centerAspectCrop(width, height, 16 / 9)); // ถ้าอยาก Fix Aspect
-  };
+  const handleProcessOCR = async () => {
+    if (!selectedFile) return;
+    setIsProcessing(true);
+    setStatusMessage('กำลังวิเคราะห์ใบเสร็จด้วย Python OCR...');
+    setDebugImage(null); // ล้างรูปเก่าก่อนประมวลผลใหม่
 
-  // 3. ฟังก์ชัน Helper สำหรับแปลง Canvas เป็นไฟล์รูป (Blob)
-  const getCroppedImg = (image, crop) => {
-    const canvas = document.createElement('canvas');
-    const scaleX = image.naturalWidth / image.width;
-    const scaleY = image.naturalHeight / image.height;
-    canvas.width = crop.width;
-    canvas.height = crop.height;
-    const ctx = canvas.getContext('2d');
-
-    ctx.drawImage(
-      image,
-      crop.x * scaleX,
-      crop.y * scaleY,
-      crop.width * scaleX,
-      crop.height * scaleY,
-      0,
-      0,
-      crop.width,
-      crop.height
-    );
-
-    return new Promise((resolve) => {
-      canvas.toBlob((blob) => {
-        resolve(blob);
-      }, 'image/jpeg');
-    });
-  };
-
-  // 4. ส่งรูปที่ Crop แล้วไปประมวลผล (Upload & Scan)
-  const handleUploadAndScan = async () => {
-    if (!completedCrop || !imgRef.current) return alert("กรุณาเลือกรูปและพื้นที่ใบเสร็จ");
-
-    setLoading(true);
-    setError(null);
-    setResult(null);
+    const formData = new FormData();
+    formData.append('image', selectedFile); // Key 'image' ตรงกับ upload.single('image')
+    formData.append('type', receiptType);   // ส่งประเภทใบเสร็จ
 
     try {
-      // ได้ไฟล์รูปที่ Crop แล้วเป็น Blob
-      const croppedBlob = await getCroppedImg(imgRef.current, completedCrop);
-      const file = new File([croppedBlob], "receipt.jpg", { type: "image/jpeg" });
-
-      const formData = new FormData();
-      formData.append('image', file);
-      formData.append('type', '1'); // Default Thermal ตาม Schema
-
-      // ยิง API (backend/controllers/receiptController.js)
+      // ✅ Step 2: เรียก API ตาม Route และ Schema ใหม่
       const response = await api.post('/receipts/upload', formData);
+      const { data, parsed_data, debug_image } = response.data;
 
-      // Backend จะส่งข้อมูลตาม Schema ใหม่กลับมา
-      setResult(response.data);
+      // ✅ แสดงรูปภาพที่ผ่านการประมวลผล (Framed Image)
+      // Backend ส่งมาเป็น Base64 เราต้องเติม Prefix เพื่อให้ <img> แสดงผลได้
+      if (debug_image) {
+        setDebugImage(`data:image/jpeg;base64,${debug_image}`);
+      }
 
-      // ใน UploadReceipt.jsx
+      setExtractedText(parsed_data.extracted_text || '');
+
+      // ✅ Step 3: แมปข้อมูลให้ตรงกับ editableFields ตาม Schema
+      const mappedData = {
+        dbReceiptId: data.receipt_id, // ใช้ ID ที่ได้จากการบันทึกลง DB
+        plateNo: parsed_data.license_plate_no || '',
+        gasProvider: parsed_data.gas_station || 'Unknown',
+        transactionDate: parsed_data.bill_date || '',
+        amount: parsed_data.amount || '',
+        // เพิ่มฟิลด์อื่นๆ ตามต้องการ
+      };
+
+      setParsedData(mappedData);
+      setEditableFields(prev => ({ ...prev, ...mappedData }));
+      setStatusMessage('วิเคราะห์สำเร็จ! กรุณาตรวจสอบและบันทึกข้อมูล');
     } catch (err) {
-      console.error("Full Error Response:", err.response?.data); // ดู Error รายละเอียดจาก Backend
-      setError(err.response?.data?.error || "เกิดข้อผิดพลาดที่ระบบหลังบ้าน");
+      console.error("OCR Error:", err);
+      setStatusMessage('เกิดข้อผิดพลาด: ' + (err.response?.data?.error || err.message));
+      setIsError(true);
     } finally {
-      setLoading(false);
+      setIsProcessing(false);
     }
   };
 
-  // แสดงผลสถานะใบเสร็จ (Approval)
-  const statusBadge = useMemo(() => {
-    if (!result?.data) return null;
-    const status = result.data.approval;
-    const colors = {
-      'Pending': 'bg-yellow-100 text-yellow-800',
-      'Approved': 'bg-green-100 text-green-800',
-      'Rejected': 'bg-red-100 text-red-800'
-    };
-    return <span className={`px-3 py-1 rounded-full text-xs font-medium ${colors[status] || 'bg-gray-100'}`}>{status}</span>;
-  }, [result]);
+  const handleSaveToDB = async () => {
+    try {
+      setStatusMessage('กำลังบันทึกข้อมูล...');
+      await api.put(`/receipts/${editableFields.dbReceiptId}`, {
+        ...editableFields,
+        approval: 'Pending'
+      });
+      setStatusMessage('บันทึกสำเร็จ! ✅');
+      setTimeout(() => navigate('/admin/receipts'), 1500);
+    } catch (err) {
+      setStatusMessage('บันทึกไม่สำเร็จ: ' + err.message);
+      setIsError(true);
+    }
+  };
+
+  // --- Cropper Logic ---
+  const onCropComplete = useCallback((_, pixels) => setCroppedAreaPixels(pixels), []);
+  const handleCropSave = async () => {
+    const croppedBlob = await getCroppedImg(imagePreviewUrl, croppedAreaPixels);
+    const croppedFile = new File([croppedBlob], selectedFile.name, { type: 'image/jpeg' });
+    setSelectedFile(croppedFile);
+    setImagePreviewUrl(URL.createObjectURL(croppedBlob));
+    setShowCropper(false);
+  };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto bg-gray-50 min-h-screen">
-      <div className="flex items-center space-x-3 mb-8 border-b pb-4">
-        <FileText className="text-blue-600 w-8 h-8" />
-        <h1 className="text-3xl font-bold text-gray-800">อัปโหลดและสแกนใบเสร็จ (กฟผ.)</h1>
-      </div>
+    <div className="p-6 bg-gray-50 min-h-screen font-sans">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl font-black text-gray-800 mb-8 flex items-center">
+          <Upload className="mr-3 text-blue-600" /> Upload & Process Receipt
+        </h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-        {/* --- ส่วนที่ 1: อัปโหลดและ Crop (เลียนแบบ ScannerPage) --- */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-6">
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">เลือกรูปใบเสร็จ</label>
-            <div className="flex items-center justify-center w-full">
-              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-blue-200 border-dashed rounded-lg cursor-pointer bg-blue-50 hover:bg-blue-100 transition">
-                <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center">
-                  <UploadCloud className="w-8 h-8 mb-3 text-blue-500" />
-                  <p className="mb-2 text-sm text-blue-700"><span className="font-semibold">คลิกเพื่ออัปโหลด</span> หรือลากไฟล์มาวาง</p>
-                  <p className="text-xs text-blue-500">PNG, JPG (แนะนำแนวตั้ง)</p>
-                </div>
-                <input type="file" className="hidden" accept="image/*" onChange={onSelectFile} />
-              </label>
-            </div>
-          </div>
+          {/* Column 1: Upload & Preview */}
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-bold mb-4 flex items-center"><Scissors className="mr-2 w-5 h-5" /> Step 1: Image</h2>
 
-          {imgSrc && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="block text-sm font-medium text-gray-700 flex items-center"><CropIcon className="mr-2 w-4 h-4" /> ตัดรูป (Crop)</label>
-                <span className="text-xs text-gray-400">กรุณาเลือกเฉพาะพื้นที่ใบเสร็จ</span>
-              </div>
-              <div className="border-4 border-gray-200 rounded-lg overflow-hidden max-h-[500px] overflow-y-auto">
-                <ReactCrop
-                  crop={crop}
-                  onChange={c => setCrop(c)}
-                  onComplete={c => setCompletedCrop(c)}
-                  className="w-full"
-                >
-                  <img ref={imgRef} src={imgSrc} alt="Original" onLoad={onImageLoad} style={{ maxWidth: '100%' }} />
-                </ReactCrop>
-              </div>
-
-              <button
-                onClick={handleUploadAndScan}
-                className="w-full flex justify-center items-center py-3 px-4 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300 transition"
-                disabled={loading || !completedCrop}
-              >
-                {loading ? (
-                  <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></div> กำลังประมวลผล OCR...</>
-                ) : (
-                  <><Search className="mr-2 w-5 h-5" /> สแกนใบเสร็จ</>
-                )}
-              </button>
-            </div>
-          )}
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-start">
-              <AlertCircle className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
-              <p className="text-sm">{error}</p>
-            </div>
-          )}
-        </div>
-
-        {/* --- ส่วนที่ 2: แสดงผลลัพธ์ (ตาม Database Schema ใหม่) --- */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-6">
-          <div className="flex justify-between items-center border-b pb-4">
-            <h2 className="text-lg font-bold">ผลลัพธ์การสแกน</h2>
-            {statusBadge}
-          </div>
-
-          {!result && !loading && (
-            <div className="text-center py-20 text-gray-400 border-2 border-gray-100 border-dashed rounded-xl">
-              <Search className="w-16 h-16 mx-auto mb-4" />
-              อัปโหลดและสแกนรูปภาพเพื่อดูข้อมูล
-            </div>
-          )}
-
-          {loading && (
-            <div className="text-center py-20 animate-pulse text-blue-500">
-              <FileText className="w-16 h-16 mx-auto mb-4" />
-              กำลังรอข้อมูลจาก Backend...
-            </div>
-          )}
-
-          {result && (
-            <div className="space-y-6">
-              {/* ข้อมูลที่จำเป็นตาม Database */}
-              <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border">
-                <div>
-                  <label className="text-xs text-gray-500">ทะเบียนรถ</label>
-                  <p className="font-bold text-xl">{result.data.license_plate_no || result.parsed_data?.license_plate || 'ไม่พบ'}</p>
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500">วันที่</label>
-                  <p className="font-semibold">{new Date(result.data.bill_date).toLocaleDateString('th-TH')}</p>
-                </div>
-              </div>
-
-              {/* แสดงภาพผลลัพธ์ที่ตีกรอบ (จาก Python Debug) */}
-              {result.framed_pic && (
-                <div className="space-y-2 border-t pt-4">
-                  <h4 className="font-semibold text-gray-700">ภาพที่ผ่านการตีกรอบ (OCR View):</h4>
-                  <div className="border-4 border-gray-200 rounded-lg overflow-hidden">
-                    <img
-                      src={result.framed_pic.startsWith('data:') ? result.framed_pic : `data:image/jpeg;base64,${result.framed_pic}`}
-                      alt="OCR Debug"
-                      className="w-full h-auto"
-                    />
-                  </div>
+            <div
+              onClick={() => fileInputRef.current.click()}
+              className="aspect-[3/4] border-4 border-dashed border-gray-100 rounded-3xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-200 transition-all overflow-hidden bg-gray-50"
+            >
+              {imagePreviewUrl ? (
+                <img src={imagePreviewUrl} className="w-full h-full object-contain" alt="Preview" />
+              ) : (
+                <div className="text-center p-6">
+                  <Upload className="mx-auto mb-4 text-gray-300" size={48} />
+                  <p className="text-gray-400 font-medium">Click to upload receipt</p>
                 </div>
               )}
             </div>
-          )}
+            <input type="file" ref={fileInputRef} hidden onChange={handleImageChange} accept="image/*" />
+
+            {imagePreviewUrl && (
+              <button
+                onClick={() => setShowCropper(true)}
+                className="w-full mt-4 py-3 bg-gray-100 text-gray-700 rounded-2xl font-bold flex items-center justify-center hover:bg-gray-200"
+              >
+                <Scissors size={18} className="mr-2" /> Crop Image
+              </button>
+            )}
+
+            <div className="mt-6 p-4 bg-blue-50 rounded-2xl border border-blue-100">
+              <label className="block text-sm font-bold text-blue-700 mb-2">Receipt Layout:</label>
+              <div className="flex gap-4">
+                {['1', '2'].map(t => (
+                  <label key={t} className="flex items-center cursor-pointer">
+                    <input type="radio" className="mr-2" checked={receiptType === t} onChange={() => setReceiptType(t)} />
+                    <span className="text-sm">{t === '1' ? 'Thermal Slip' : 'A4 Full Page'}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <button
+              disabled={!selectedFile || isProcessing}
+              onClick={handleProcessOCR}
+              className={`w-full mt-4 py-4 rounded-2xl font-black text-white shadow-lg transition-all flex items-center justify-center ${isProcessing ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'}`}
+            >
+              {isProcessing ? <><span className="animate-spin mr-2">🌀</span> Processing...</> : <><Cpu className="mr-2" /> Start OCR</>}
+            </button>
+          </div>
+
+          {/* Column 2: Form Data */}
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-bold mb-4 flex items-center"><FileText className="mr-2 w-5 h-5" /> Step 2: Data</h2>
+            {parsedData ? (
+              <div className="space-y-4 h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                {Object.keys(editableFields).map((key) => (
+                  key !== 'dbReceiptId' && (
+                    <div key={key}>
+                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">{key}</label>
+                      <input
+                        className="w-full p-3 bg-gray-50 border-2 border-gray-50 rounded-xl focus:border-blue-500 outline-none font-medium"
+                        value={editableFields[key]}
+                        onChange={(e) => setEditableFields({ ...editableFields, [key]: e.target.value })}
+                      />
+                    </div>
+                  )
+                ))}
+                <button
+                  onClick={handleSaveToDB}
+                  className="w-full py-4 bg-green-500 hover:bg-green-600 text-white rounded-2xl font-black shadow-lg flex items-center justify-center transition-all"
+                >
+                  <Save className="mr-2" /> Confirm & Save
+                </button>
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-gray-300 opacity-50">
+                <FileText size={64} className="mb-4" />
+                <p>Waiting for OCR process...</p>
+              </div>
+            )}
+          </div>
+
+          {/* Column 3: Debug & OCR Text */}
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-bold mb-4 flex items-center">
+              <AlertCircle className="mr-2 w-5 h-5 text-orange-500" /> Step 3: Result
+            </h2>
+
+            {/* ส่วนแสดงรูปที่ผ่านการตีกรอบ */}
+            {debugImage ? (
+              <div className="mb-6 animate-in fade-in zoom-in duration-300">
+                <p className="text-xs font-bold text-gray-400 mb-2 uppercase tracking-tighter">
+                  Framed Image (OCR Vision)
+                </p>
+                <div className="relative rounded-2xl overflow-hidden border-2 border-blue-500 shadow-lg">
+                  <img src={debugImage} className="w-full h-auto" alt="Processed Debug View" />
+                  <div className="absolute bottom-0 inset-x-0 bg-blue-600/80 backdrop-blur-sm text-white text-[10px] py-1 text-center font-bold">
+                    PROCESSED BY PYTHON OCR
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-6 h-48 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-100 flex items-center justify-center">
+                <p className="text-gray-300 text-sm">No processed image yet</p>
+              </div>
+            )}
+
+            {/* ส่วนแสดง Raw Text */}
+            <p className="text-xs font-bold text-gray-400 mb-2 uppercase tracking-tighter">Raw Extracted Text</p>
+            <div className="bg-gray-900 rounded-2xl p-4 h-64 overflow-y-auto shadow-inner">
+              <code className="text-xs font-mono text-green-400 whitespace-pre-wrap leading-relaxed">
+                {extractedText || "// Waiting for analysis..."}
+              </code>
+            </div>
+          </div>
+
         </div>
       </div>
+
+      {/* --- Cropper Modal --- */}
+      {showCropper && (
+        <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-sm p-8 flex flex-col">
+          <div className="relative flex-1 bg-gray-800 rounded-3xl overflow-hidden">
+            <Cropper
+              image={imagePreviewUrl}
+              crop={crop} zoom={zoom} aspect={aspect === 'free' ? undefined : aspect}
+              onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={onCropComplete}
+            />
+          </div>
+          <div className="mt-6 flex flex-wrap gap-4 items-center justify-center">
+            <select onChange={(e) => setAspect(e.target.value === 'free' ? 'free' : parseFloat(e.target.value))} className="p-3 rounded-xl bg-white font-bold">
+              <option value="free">Free Aspect</option>
+              <option value={3 / 4}>3:4 (Receipt)</option>
+              <option value={9 / 16}>9:16 (Long)</option>
+            </select>
+            <button onClick={handleCropSave} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold">Apply Crop</button>
+            <button onClick={() => setShowCropper(false)} className="px-8 py-3 bg-gray-600 text-white rounded-xl font-bold">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* --- Status Toast --- */}
+      {statusMessage && (
+        <div className={`fixed bottom-8 right-8 px-6 py-4 rounded-2xl shadow-2xl flex items-center font-bold animate-bounce ${isError ? 'bg-red-500 text-white' : 'bg-white text-gray-800'}`}>
+          {isError ? <AlertCircle className="mr-2" /> : <CheckCircle2 className="mr-2 text-green-500" />}
+          {statusMessage}
+        </div>
+      )}
     </div>
   );
 };
