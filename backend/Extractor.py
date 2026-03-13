@@ -1,46 +1,39 @@
 import re
-from datetime import datetime
 
 class Extractor:
     def __init__(self, text):
         self.text = text
         self.patterns = {
-            # ปรับให้รองรับทะเบียนรถไทย เช่น 1กข 1234
-            'plate': r'(\d?[ก-ฮ]{2}\s?\d{1,4})',
-            'date': r'(\d{2}/\d{2}/\d{4})|(\d{2}-\d{2}-\d{4})',
-            'amount': r'(?:TOTAL|รวมเป็นเงิน|ยอดรวม|จำนวนเงิน)\s*[:\.]?\s*([\d,]+\.\d{2})',
+            # 1. ทะเบียนรถ (เช่น 1นข4516)
+            'plate': r'(?:ทะเบียนรถ|Vehicle|รถเลขที่)\s*[:\.]?\s*([0-9ก-ฮ]{1,2}[ก-ฮ]{1,2}\s?\d{1,4})',
+            # 2. วันที่ (รองรับ DD/MM/YYYY)
+            'date': r'(\d{2}/\d{2}/\d{4})',
+            # 3. เลขผู้เสียภาษี กฟผ. (0994000244843)
+            'egat_tax_id': r'(0994000244843)',
+            # 4. ที่อยู่ กฟผ. (เน้นคำสำคัญ: บางกรวย, นนทบุรี)
+          'egat_address': r'(\d{2}\s*หมู่ที่\s*\d+.*บางกรวย.*นนทบุรี\s*\d{5})'
         }
 
+    def _format_date(self, date_str):
+        if not date_str: return None
+    # ใช้ Regex ดึงเฉพาะตัวเลข 3 ชุด (วัน/เดือน/ปี) เผื่อมีเวลาติดมาด้วย
+        match = re.search(r'(\d{2})[/-](\d{2})[/-](\d{4})', date_str)
+        if match:
+            d, m, y = match.groups()
+            y = int(y)
+            if y > 2400: y -= 543 # แปลง พ.ศ. เป็น ค.ศ.
+            return f"{y}-{m}-{d}" # ส่งกลับ YYYY-MM-DD
+        return None
+
     def extract_all(self):
-        results = {
+        return {
             'license_plate_no': self._find_pattern('plate'),
-            'bill_date': self._format_date(self._find_pattern('date')),
-            'amount': self._clean_number(self._find_pattern('amount')),
-            'gas_station': self._find_gas_station()
+            'bill_date': self._find_pattern('date'),
+            'egat_tax_id': self._find_pattern('egat_tax_id'),
+            'egat_address': self._find_pattern('egat_address')
         }
-        return results
 
     def _find_pattern(self, key):
         pattern = self.patterns.get(key)
         match = re.search(pattern, self.text, re.IGNORECASE | re.MULTILINE)
         return match.group(1) if match else None
-
-    def _format_date(self, date_str):
-        if not date_str: return None
-        # ลบ / หรือ - ออกเพื่อจัดการ
-        clean_date = re.sub(r'[/-]', ' ', date_str).split()
-        if len(clean_date) == 3:
-            d, m, y = clean_date
-            y = int(y)
-            if y > 2500: y -= 543 # แปลง พ.ศ. เป็น ค.ศ.
-            return f"{y}-{m}-{d}"
-        return None
-
-    def _clean_number(self, num_str):
-        if not num_str: return 0.0
-        return float(re.sub(r'[^\d.]', '', num_str))
-
-    def _find_gas_station(self):
-        for s in ['PTT', 'OR', 'BANGCHAK', 'SHELL', 'CALTEX']:
-            if s in self.text.upper(): return s
-        return "Unknown"

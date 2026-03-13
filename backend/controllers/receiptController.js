@@ -78,12 +78,19 @@ exports.processReceipt = async (req, res) => {
           }
         }
 
+        let billDate = new Date(); // Default เป็นวันที่ปัจจุบันหากอ่านไม่ออก
+        if (ocr?.bill_date && ocr.bill_date !== "null") {
+          const checkDate = new Date(ocr.bill_date);
+          if (!isNaN(checkDate.getTime())) {
+            billDate = checkDate;
+          }
+        }
         // --- STEP 4: Save to Database ---
         // ตอนนี้ framed_pic_url จะมีค่าเสมอ (ไม่เป็น URL ใหม่ ก็เป็น URL เดิม)
         const newReceipt = await Receipts.create({
           user_id: userId,
           license_plate_no: ocr?.license_plate_no || "Unknown",
-          bill_date: ocr?.bill_date || new Date(),
+          bill_date: billDate,
           og_pic: og_pic_url,
           framed_pic: framed_pic_url,
           approval: 'Pending'
@@ -94,7 +101,8 @@ exports.processReceipt = async (req, res) => {
         res.status(200).json({
           message: "Receipt processed and saved successfully!",
           data: newReceipt,
-          parsed_data: ocr
+          parsed_data: ocr,
+          debug_image: parsedResult.debug_image
         });
 
       } catch (jsonErr) {

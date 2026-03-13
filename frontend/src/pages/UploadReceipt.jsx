@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Cropper from 'react-easy-crop';
 import { Upload, Scissors, Cpu, Save, AlertCircle, CheckCircle2, RotateCcw, FileText } from 'lucide-react';
@@ -17,7 +17,6 @@ const UploadReceipt = () => {
   const [isError, setIsError] = useState(false);
   const [receiptType, setReceiptType] = useState('1');
   const [debugImage, setDebugImage] = useState(null);
-  const [extractedText, setExtractedText] = useState('');
   const [parsedData, setParsedData] = useState(null);
 
   // --- Cropper States ---
@@ -29,8 +28,25 @@ const UploadReceipt = () => {
 
   // --- Editable Fields ---
   const [editableFields, setEditableFields] = useState({
-    plateNo: '', transactionDate: '', egatAddress: '', egatTaxId: ''
+    plateNo: '',
+    transactionDate: '',
+    egatAddress: '',
+    egatTaxId: ''
   });
+
+  useEffect(() => {
+    const fetchMasterData = async () => {
+      try {
+        const response = await fetch(`${API}/api/master`);
+        if (!response.ok) throw new Error('Failed to fetch master data');
+        const data = await response.json();
+        setMasterData(data);
+      } catch (error) {
+        console.error("Error fetching master data:", error);
+      }
+    };
+    fetchMasterData();
+  }, []);
 
   // --- Handlers ---
   const handleImageChange = (e) => {
@@ -58,24 +74,25 @@ const UploadReceipt = () => {
     try {
       // ✅ Step 2: เรียก API ตาม Route และ Schema ใหม่
       const response = await api.post('/receipts/upload', formData);
+      console.log("🔍 Raw Response Data:", response.data);
       const { data, parsed_data, debug_image } = response.data;
-
       // ✅ แสดงรูปภาพที่ผ่านการประมวลผล (Framed Image)
       // Backend ส่งมาเป็น Base64 เราต้องเติม Prefix เพื่อให้ <img> แสดงผลได้
       if (debug_image) {
-        setDebugImage(`data:image/jpeg;base64,${debug_image}`);
+        // ตรวจสอบว่าใน String มี Header หรือยัง ถ้ายังไม่มีให้เติมเข้าไป
+        const formattedImage = debug_image.startsWith('data:image')
+          ? debug_image
+          : `data:image/jpeg;base64,${debug_image}`;
+        setDebugImage(formattedImage);
       }
-
-      setExtractedText(parsed_data.extracted_text || '');
 
       // ✅ Step 3: แมปข้อมูลให้ตรงกับ editableFields ตาม Schema
       const mappedData = {
-        dbReceiptId: data.receipt_id, // ใช้ ID ที่ได้จากการบันทึกลง DB
+        dbReceiptId: data.receipt_id,
         plateNo: parsed_data.license_plate_no || '',
-        gasProvider: parsed_data.gas_station || 'Unknown',
         transactionDate: parsed_data.bill_date || '',
-        amount: parsed_data.amount || '',
-        // เพิ่มฟิลด์อื่นๆ ตามต้องการ
+        egatTaxId: parsed_data.egat_tax_id || '',
+        egatAddress: parsed_data.egat_address || '',
       };
 
       setParsedData(mappedData);
@@ -214,14 +231,10 @@ const UploadReceipt = () => {
             {/* ส่วนแสดงรูปที่ผ่านการตีกรอบ */}
             {debugImage ? (
               <div className="mb-6 animate-in fade-in zoom-in duration-300">
-                <p className="text-xs font-bold text-gray-400 mb-2 uppercase tracking-tighter">
-                  Framed Image (OCR Vision)
-                </p>
+                <p className="text-xs font-bold text-gray-400 mb-2 uppercase">Framed Image (OCR View)</p>
                 <div className="relative rounded-2xl overflow-hidden border-2 border-blue-500 shadow-lg">
-                  <img src={debugImage} className="w-full h-auto" alt="Processed Debug View" />
-                  <div className="absolute bottom-0 inset-x-0 bg-blue-600/80 backdrop-blur-sm text-white text-[10px] py-1 text-center font-bold">
-                    PROCESSED BY PYTHON OCR
-                  </div>
+                  {/* ✅ ใช้ debugImage ตรงๆ เพราะเราใส่ Prefix ใน Step 1 แล้ว */}
+                  <img src={debugImage} className="w-full h-auto" alt="Processed View" />
                 </div>
               </div>
             ) : (
@@ -229,14 +242,6 @@ const UploadReceipt = () => {
                 <p className="text-gray-300 text-sm">No processed image yet</p>
               </div>
             )}
-
-            {/* ส่วนแสดง Raw Text */}
-            <p className="text-xs font-bold text-gray-400 mb-2 uppercase tracking-tighter">Raw Extracted Text</p>
-            <div className="bg-gray-900 rounded-2xl p-4 h-64 overflow-y-auto shadow-inner">
-              <code className="text-xs font-mono text-green-400 whitespace-pre-wrap leading-relaxed">
-                {extractedText || "// Waiting for analysis..."}
-              </code>
-            </div>
           </div>
 
         </div>
@@ -255,8 +260,8 @@ const UploadReceipt = () => {
           <div className="mt-6 flex flex-wrap gap-4 items-center justify-center">
             <select onChange={(e) => setAspect(e.target.value === 'free' ? 'free' : parseFloat(e.target.value))} className="p-3 rounded-xl bg-white font-bold">
               <option value="free">Free Aspect</option>
-              <option value={3 / 4}>3:4 (Receipt)</option>
-              <option value={9 / 16}>9:16 (Long)</option>
+              <option value={3 / 2}>3:2 (Receipt)</option>
+              <option value={1 / 4}>1:4 (Long)</option>
             </select>
             <button onClick={handleCropSave} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold">Apply Crop</button>
             <button onClick={() => setShowCropper(false)} className="px-8 py-3 bg-gray-600 text-white rounded-xl font-bold">Cancel</button>
@@ -266,7 +271,7 @@ const UploadReceipt = () => {
 
       {/* --- Status Toast --- */}
       {statusMessage && (
-        <div className={`fixed bottom-8 right-8 px-6 py-4 rounded-2xl shadow-2xl flex items-center font-bold animate-bounce ${isError ? 'bg-red-500 text-white' : 'bg-white text-gray-800'}`}>
+        <div className={`fixed bottom-8 right-8 px-6 py-4 rounded-2xl shadow-2xl flex items-center font-bold ${isError ? 'bg-red-500 text-white' : 'bg-white text-gray-800'}`}>
           {isError ? <AlertCircle className="mr-2" /> : <CheckCircle2 className="mr-2 text-green-500" />}
           {statusMessage}
         </div>
