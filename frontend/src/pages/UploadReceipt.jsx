@@ -17,6 +17,7 @@ const UploadReceipt = () => {
   const [isError, setIsError] = useState(false);
   const [receiptType, setReceiptType] = useState('1');
   const [debugImage, setDebugImage] = useState(null);
+  const [masterData, setMasterData] = useState(null);
   const [parsedData, setParsedData] = useState(null);
 
   // --- Cropper States ---
@@ -37,10 +38,9 @@ const UploadReceipt = () => {
   useEffect(() => {
     const fetchMasterData = async () => {
       try {
-        const response = await fetch(`${API}/api/master`);
-        if (!response.ok) throw new Error('Failed to fetch master data');
-        const data = await response.json();
-        setMasterData(data);
+        const response = await api.get('/master');
+        setMasterData(response.data);
+        console.log("📊 Master Data:", response.data);
       } catch (error) {
         console.error("Error fetching master data:", error);
       }
@@ -143,50 +143,52 @@ const UploadReceipt = () => {
 
           {/* Column 1: Upload & Preview */}
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-            <h2 className="text-lg font-bold mb-4 flex items-center"><Scissors className="mr-2 w-5 h-5" /> Step 1: Image</h2>
+            <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Scissors size={20} /> Step 1: Image</h2>
 
+            {/* Upload Area */}
             <div
               onClick={() => fileInputRef.current.click()}
-              className="aspect-[3/4] border-4 border-dashed border-gray-100 rounded-3xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-200 transition-all overflow-hidden bg-gray-50"
+              className="aspect-[4/3] border-4 border-dashed border-gray-100 rounded-3xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-200 transition-all bg-gray-50 overflow-hidden"
             >
               {imagePreviewUrl ? (
                 <img src={imagePreviewUrl} className="w-full h-full object-contain" alt="Preview" />
               ) : (
-                <div className="text-center p-6">
-                  <Upload className="mx-auto mb-4 text-gray-300" size={48} />
-                  <p className="text-gray-400 font-medium">Click to upload receipt</p>
+                <div className="text-center text-gray-300">
+                  <Upload size={48} className="mx-auto mb-2" />
+                  <p className="font-medium text-sm">Click to upload</p>
                 </div>
               )}
             </div>
             <input type="file" ref={fileInputRef} hidden onChange={handleImageChange} accept="image/*" />
 
+            {/* Actions */}
             {imagePreviewUrl && (
-              <button
-                onClick={() => setShowCropper(true)}
-                className="w-full mt-4 py-3 bg-gray-100 text-gray-700 rounded-2xl font-bold flex items-center justify-center hover:bg-gray-200"
-              >
-                <Scissors size={18} className="mr-2" /> Crop Image
+              <button onClick={() => setShowCropper(true)} className="w-full mt-4 py-3 bg-gray-100 text-gray-700 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200">
+                <Scissors size={18} /> Crop Image
               </button>
             )}
 
-            <div className="mt-6 p-4 bg-blue-50 rounded-2xl border border-blue-100">
-              <label className="block text-sm font-bold text-blue-700 mb-2">Receipt Layout:</label>
+            {/* Layout Selector 
+            <div className="mt-6 p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-center justify-between">
+              <label className="text-sm font-bold text-blue-700">Layout:</label>
               <div className="flex gap-4">
                 {['1', '2'].map(t => (
-                  <label key={t} className="flex items-center cursor-pointer">
-                    <input type="radio" className="mr-2" checked={receiptType === t} onChange={() => setReceiptType(t)} />
-                    <span className="text-sm">{t === '1' ? 'Thermal Slip' : 'A4 Full Page'}</span>
+                  <label key={t} className="flex items-center gap-2 cursor-pointer text-sm">
+                    <input type="radio" checked={receiptType === t} onChange={() => setReceiptType(t)} className="accent-blue-600" />
+                    {t === '1' ? 'Slip' : 'A4'}
                   </label>
                 ))}
               </div>
             </div>
-
+*/}
+            {/* Main Action Button */}
             <button
               disabled={!selectedFile || isProcessing}
               onClick={handleProcessOCR}
-              className={`w-full mt-4 py-4 rounded-2xl font-black text-white shadow-lg transition-all flex items-center justify-center ${isProcessing ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'}`}
+              className={`w-full mt-4 py-4 rounded-2xl font-black text-white shadow-lg transition-all flex items-center justify-center gap-2 ${isProcessing ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
+                }`}
             >
-              {isProcessing ? <><span className="animate-spin mr-2">🌀</span> Processing...</> : <><Cpu className="mr-2" /> Start OCR</>}
+              {isProcessing ? <><span className="animate-spin text-lg">🌀</span> Processing</> : <><Cpu size={20} /> Start OCR</>}
             </button>
           </div>
 
@@ -236,6 +238,51 @@ const UploadReceipt = () => {
                   {/* ✅ ใช้ debugImage ตรงๆ เพราะเราใส่ Prefix ใน Step 1 แล้ว */}
                   <img src={debugImage} className="w-full h-auto" alt="Processed View" />
                 </div>
+                <div>
+                  <p className="text-xs font-bold text-gray-400 mt-4 mb-2 uppercase tracking-widest">
+                    Master Data (ข้อมูลอ้างอิง กฟผ.)
+                  </p>
+
+                  {masterData ? (
+                    <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 space-y-3">
+                      {/* เลขประจำตัวผู้เสียภาษี */}
+                      <div>
+                        <p className="text-[10px] font-black text-blue-400 uppercase">EGAT Tax ID</p>
+                        <p className="text-sm font-bold text-blue-900">{masterData.egat_tax_id || 'ไม่ระบุ'}</p>
+                      </div>
+
+                      {/* ที่อยู่ กฟผ. */}
+                      <div>
+                        <p className="text-[10px] font-black text-blue-400 uppercase">EGAT Address</p>
+                        <p className="text-xs font-medium text-blue-800 leading-relaxed">
+                          {(() => {
+                            // 🔍 Logic: ตรวจสอบว่าในข้อมูลที่ดึงมามีภาษาไทยหรือไม่
+                            const hasThai = /[ก-ฮ]/.test(editableFields.egatAddress || "");
+
+                            if (hasThai) {
+                              return masterData.egat_address_th || masterData.egatAddress || 'ไม่ระบุที่อยู่ (TH)';
+                            } else {
+                              return masterData.egat_address_eng || 'No Address Specified (ENG)';
+                            }
+                          })()}
+                        </p>
+                      </div>
+
+                      <div className="pt-2 border-t border-blue-100">
+                        <span className="text-[10px] bg-blue-200 text-blue-700 px-2 py-0.5 rounded-md font-bold uppercase">
+                          Verified Reference
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="animate-pulse flex space-x-4 p-4 bg-gray-50 rounded-2xl">
+                      <div className="flex-1 space-y-2 py-1">
+                        <div className="h-2 bg-gray-200 rounded w-3/4"></div>
+                        <div className="h-2 bg-gray-200 rounded"></div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="mb-6 h-48 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-100 flex items-center justify-center">
@@ -253,18 +300,49 @@ const UploadReceipt = () => {
           <div className="relative flex-1 bg-gray-800 rounded-3xl overflow-hidden">
             <Cropper
               image={imagePreviewUrl}
-              crop={crop} zoom={zoom} aspect={aspect === 'free' ? undefined : aspect}
-              onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={onCropComplete}
+              crop={crop}
+              zoom={zoom}
+              aspect={aspect === 'free' ? undefined : aspect}
+              onCropChange={setCrop}
+              onZoomChange={setZoom}
+              onCropComplete={onCropComplete}
             />
           </div>
+
           <div className="mt-6 flex flex-wrap gap-4 items-center justify-center">
-            <select onChange={(e) => setAspect(e.target.value === 'free' ? 'free' : parseFloat(e.target.value))} className="p-3 rounded-xl bg-white font-bold">
-              <option value="free">Free Aspect</option>
-              <option value={3 / 2}>3:2 (Receipt)</option>
-              <option value={1 / 4}>1:4 (Long)</option>
+            {/* Dropdown เลือกสัดส่วน พร้อมเซ็ตประเภทใบเสร็จอัตโนมัติ */}
+            <select
+              value={aspect}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === 'free') {
+                  setAspect('free');
+                } else {
+                  const numAspect = parseFloat(val);
+                  setAspect(numAspect);
+                  // ✅ ถ้าเลือก 1.5 (3:2) ให้เป็นแบบที่ 1, ถ้าเลือก 0.25 (1:4) ให้เป็นแบบที่ 2
+                  setReceiptType(numAspect === 1.5 ? '1' : '2');
+                }
+              }}
+              className="p-3 rounded-xl bg-white font-bold text-gray-700 outline-none ring-2 ring-blue-500"
+            >
+              <option value={3 / 2}>3:2 (ใบเสร็จทั่วไป - แบบที่ 1)</option>
+              <option value={1 / 4}>1:4 (ใบเสร็จยาว - แบบที่ 2)</option>
             </select>
-            <button onClick={handleCropSave} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold">Apply Crop</button>
-            <button onClick={() => setShowCropper(false)} className="px-8 py-3 bg-gray-600 text-white rounded-xl font-bold">Cancel</button>
+
+            <button
+              onClick={handleCropSave}
+              className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors"
+            >
+              Apply Crop
+            </button>
+
+            <button
+              onClick={() => setShowCropper(false)}
+              className="px-8 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-xl font-bold transition-colors"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}

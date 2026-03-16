@@ -5,85 +5,90 @@ import cv2
 import numpy as np
 import pytesseract
 import platform
-import re
 from Extractor import Extractor
 
-# 1. ตั้งค่า Encoding ให้รองรับภาษาไทยผ่าน Stdout
+# 1. ตั้งค่าพื้นฐาน
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
-# 2. ตั้งค่า Path สำหรับ Tesseract ตามระบบปฏิบัติการ
 if platform.system() == 'Windows':
     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 def process_ocr():
     try:
-        # 3. รับข้อมูลรูปภาพจาก Node.js ผ่าน stdin
+        # ✅ รับประเภทใบเสร็จจาก Argument (ส่งมาจาก Node.js)
+        receipt_type = sys.argv[2] if len(sys.argv) > 2 else "1"
+        
         image_data = sys.stdin.buffer.read()
-        if not image_data:
-            print(json.dumps({"error": "No image data received"}))
-            return
-
         nparr = np.frombuffer(image_data, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
         if img is None:
-            print(json.dumps({"error": "Failed to decode image"}))
+            print(json.dumps({"error": "Decode failed"}))
             return
 
-        # 4. เตรียมรูปภาพ (Grayscale สำหรับ OCR แต่ใช้รูปสีสำหรับตีกรอบ)
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # --- 2. Preprocessing (ทำเหมือนกันทั้ง 2 แบบ) ---
+        img_resized = cv2.resize(img, None, fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
+        gray = cv2.cvtColor(img_resized, cv2.COLOR_BGR2GRAY)
+        denoised = cv2.bilateralFilter(gray, 9, 75, 75)
+        processed_img = cv2.adaptiveThreshold(
+            denoised, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+            cv2.THRESH_BINARY, 11, 2
+        )
+
+        # --- 3. OCR Extraction ---
+        d = pytesseract.image_to_data(processed_img, lang='tha+eng', output_type=pytesseract.Output.DICT)
+        extracted_text = pytesseract.image_to_string(processed_img, lang='tha+eng', config='--psm 3')
         
-        # 5. ทำ OCR เพื่อเอาทั้งข้อความและพิกัด (Bounding Boxes)
-        # ใช้ psm 3 เพื่อสแกนหา Layout อัตโนมัติ
-        d = pytesseract.image_to_data(gray, lang='tha+eng', output_type=pytesseract.Output.DICT)
-        extracted_text = pytesseract.image_to_string(gray, lang='tha+eng', config='--psm 3')
+        # เตรียมรูปสำหรับวาดเส้น (แปลงขาวดำกลับเป็นสี)
+        debug_output_img = cv2.cvtColor(processed_img, cv2.COLOR_GRAY2BGR)
 
-        # 6. Logic การตีกรอบเฉพาะ 4 ข้อมูลสำคัญ
-        # นิยาม Keywords ที่จะใช้ระบุตำแหน่งข้อมูล
-        target_keywords = {
-            'ทะเบียน': (0, 255, 0),       # สีเขียว
-            '0994000244843': (0, 0, 255),  # สีแดง (เลขภาษี กฟผ.)
-            'บางกรวย': (255, 165, 0),     # สีส้ม (ที่อยู่ กฟผ.)
-            '/': (255, 0, 0)              # สีน้ำเงิน (ใช้ / เป็นตัวแทนของวันที่)
-        }
-
+        # --- 4. 🚀 แยก Logic การตีกรอบตามประเภทใบเสร็จ ---
         n_boxes = len(d['text'])
-        for i in range(n_boxes):
-            if int(d['conf'][i]) > 30: # กรองเฉพาะที่มั่นใจ
-                text = d['text'][i]
-                for key, color in target_keywords.items():
-                    if key in text:
-                        (x, y, w, h) = (d['left'][i], d['top'][i], d['width'][i], d['height'][i])
-                        # วาดกล่องและขยายขอบเขตไปด้านขวา 180px เพื่อให้ครอบคลุมข้อมูลข้างหลัง Keyword
-                        cv2.rectangle(img, (x - 5, y - 5), (x + w + 180, y + h + 10), color, 2)
+        
+        if receipt_type == "1":
+            # 📝 โครงสำหรับการตีกรอบแบบที่ 1 (เช่น Thermal Slip)
+            # คุณสามารถมาแก้รายละเอียดการหา Keywords ตรงนี้ทีหลัง
+            target_keywords = {'ทะเบียน': (0, 255, 0), '0994': (0, 0, 255)} 
+            for i in range(n_boxes):
+                if int(d['conf'][i]) > 30:
+                    text = d['text'][i]
+                    for key, color in target_keywords.items():
+                        if key in text:
+                            (x, y, w, h) = (d['left'][i], d['top'][i], d['width'][i], d['height'][i])
+                            cv2.rectangle(debug_output_img, (x-5, y-5), (x+w+150, y+h+10), color, 2)
+                            
+        elif receipt_type == "2":
+            # 📝 โครงสำหรับการตีกรอบแบบที่ 2 (เช่น A4 Full Page)
+            # แยกเงื่อนไขหรือ Keywords ต่างกันได้ที่นี่
+            target_keywords = {'ใบกำกับภาษี': (255, 0, 0), 'กฟผ': (255, 165, 0)}
+            for i in range(n_boxes):
+                if int(d['conf'][i]) > 30:
+                    text = d['text'][i]
+                    for key, color in target_keywords.items():
+                        if key in text:
+                            (x, y, w, h) = (d['left'][i], d['top'][i], d['width'][i], d['height'][i])
+                            # ตัวอย่าง: แบบที่ 2 อาจจะตีกรอบกว้างกว่า
+                            cv2.rectangle(debug_output_img, (x-10, y-10), (x+w+300, y+h+20), color, 3)
 
-        # 7. ใช้ Extractor ดึงข้อมูลมาเป็น JSON
+        # --- 5. ส่งข้อมูลกลับ ---
         extractor = Extractor(extracted_text)
         parsed_data = extractor.extract_all()
         
-        # 8. แปลงรูปที่ตีกรอบเสร็จแล้วเป็น Base64 เพื่อส่งกลับไป React
-        debug_base64 = ""
-        try:
-            _, buffer = cv2.imencode('.jpg', img)
-            debug_base64 = base64.b64encode(buffer).decode('utf-8')
-        except:
-            pass
+        _, buffer = cv2.imencode('.jpg', debug_output_img)
+        debug_base64 = base64.b64encode(buffer).decode('utf-8')
 
-        # 9. ส่งผลลัพธ์ออกทาง stdout
-        output = {
+        print(json.dumps({
             "status": "success",
+            "receipt_type_used": receipt_type,
             "extracted_text": extracted_text,
             "parsed_data": parsed_data,
             "debug_image": debug_base64
-        }
-        
-        print(json.dumps(output, ensure_ascii=False))
+        }, ensure_ascii=False))
         sys.stdout.flush()
 
     except Exception as e:
         print(json.dumps({"error": str(e)}, ensure_ascii=False))
-        sys.stdout.flush()
 
 if __name__ == "__main__":
     process_ocr()
