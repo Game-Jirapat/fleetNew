@@ -22,7 +22,7 @@ const ReceiptDetail = () => {
                 // ดึงข้อมูลใบเสร็จเก่า
                 const receiptRes = await api.get(`/receipts/${id}`);
                 const data = receiptRes.data;
-
+                console.log("Fetched Receipt Data:", data);
                 setEditableFields({
                     dbReceiptId: data.id,
                     plateNo: data.license_plate_no || '',

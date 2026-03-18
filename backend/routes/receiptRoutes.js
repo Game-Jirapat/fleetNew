@@ -10,7 +10,7 @@ router.post('/upload', authenticateToken, upload.single('image'), receiptControl
 
 // 2. [READ ALL] ดึงรายการใบเสร็จทั้งหมด (สำหรับหน้า Admin/Dashboard)
 router.get('/', authenticateToken, receiptController.getAllReceipts);
-
+router.get("/:id", receiptController.getReceiptById);
 // 3. [UPDATE] อัปเดตสถานะการตรวจสอบ (Approved / Rejected)
 // Path: /api/receipts/:id
 router.put('/:id', authenticateToken, receiptController.updateReceiptStatus);

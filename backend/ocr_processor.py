@@ -51,16 +51,31 @@ def process_ocr():
                             cv2.rectangle(debug_output_img, (x-5, y-5), (x+w+150, y+h+10), color, 2)
             
             # --- ส่วนที่ 2: ตีกรอบมุมขวาบน (Fixed Position) ---
-            # คำนวณพิกัดจากขนาดรูปภาพ (img_height, img_width)
+            # ดึงขนาดรูปภาพปัจจุบัน
             h_img, w_img = debug_output_img.shape[:2]
+
+            # ✅ 1. กรอบมุมขวาบน (สีส้ม) - x70 y5 ถึง x99 y25
+            cv2.rectangle(debug_output_img, 
+                         (int(w_img * 0.70), int(h_img * 0.05)), 
+                         (int(w_img * 0.99), int(h_img * 0.25)), (0, 165, 255), 5)
+
+            # ✅ 2. กรอบส่วนบนซ้ายถึงกลาง (สีแดง) - x0 y15 ถึง x80 y50
+            # เหมาะสำหรับดึงชื่อบริษัทหรือหัวข้อใบเสร็จ
+            cv2.rectangle(debug_output_img, 
+                         (int(w_img * 0.00), int(h_img * 0.15)), 
+                         (int(w_img * 0.70), int(h_img * 0.50)), (0, 0, 255), 5)
+
+            # ✅ 3. กรอบส่วนล่าง (สีฟ้า) - x0 y80 ถึง x50 y100
+            # เหมาะสำหรับดึงยอดรวมหรือหมายเหตุท้ายใบเสร็จ
+            cv2.rectangle(debug_output_img, 
+                         (int(w_img * 0.00), int(h_img * 0.80)), 
+                         (int(w_img * 0.50), int(h_img * 1.00)), (255, 0, 0), 5)
             
-            # พิกัด x70 y30 (จุดเริ่ม) ถึง x100 y0 (จุดสิ้นสุด) 
-            # คิดเป็น % ของขนาดรูปเพื่อให้รองรับรูปที่ resize มาแล้ว
-            start_point = (int(w_img * 0.70), int(h_img * 0.05)) # x=70%, y=5% (เผื่อขอบบน)
-            end_point = (int(w_img * 0.99), int(h_img * 0.25))   # x=98%, y=25%
-            
-            # วาดกรอบสีส้ม (BGR: 0, 165, 255) หนา 5px ตามที่คุณต้องการ
-            cv2.rectangle(debug_output_img, start_point, end_point, (0, 165, 255), 5)
+            # ✅ 4. กรอบส่วนล่าง (สีฟ้า) - x0 y80 ถึง x50 y100
+            # เหมาะสำหรับดึงยอดรวมหรือหมายเหตุท้ายใบเสร็จ
+            cv2.rectangle(debug_output_img, 
+                         (int(w_img * 0.50), int(h_img * 0.80)), 
+                         (int(w_img * 1.00), int(h_img * 1.00)), (255, 255, 0), 5)
             
         elif receipt_type == "2":
             # 📝 โครงสำหรับการตีกรอบแบบที่ 2 (เช่น Thermal Slip)
@@ -74,6 +89,27 @@ def process_ocr():
                             (x, y, w, h) = (d['left'][i], d['top'][i], d['width'][i], d['height'][i])
                             # ตัวอย่าง: แบบที่ 2 อาจจะตีกรอบกว้างกว่า
                             cv2.rectangle(debug_output_img, (x-10, y-10), (x+w+300, y+h+20), color, 3)
+                            
+            # ดึงขนาดรูปภาพปัจจุบัน
+            h_img, w_img = debug_output_img.shape[:2]
+
+            # ✅ 1. กรอบมุมขวาบน (สีส้ม) - x70 y5 ถึง x99 y25
+            cv2.rectangle(debug_output_img, 
+                         (int(w_img * 0.00), int(h_img * 0.00)), 
+                         (int(w_img * 1.00), int(h_img * 0.25)), (0, 165, 255), 5)
+
+            # ✅ 2. กรอบส่วนบนซ้ายถึงกลาง (สีแดง) - x0 y15 ถึง x80 y50
+            # เหมาะสำหรับดึงชื่อบริษัทหรือหัวข้อใบเสร็จ
+            cv2.rectangle(debug_output_img, 
+                         (int(w_img * 0.00), int(h_img * 0.50)), 
+                         (int(w_img * 1.00), int(h_img * 0.70)), (0, 0, 255), 5)
+            
+            # ✅ 4. กรอบส่วนล่าง (สีฟ้า) - x0 y80 ถึง x50 y100
+            # เหมาะสำหรับดึงยอดรวมหรือหมายเหตุท้ายใบเสร็จ
+            cv2.rectangle(debug_output_img, 
+                         (int(w_img * 0.00), int(h_img * 0.80)), 
+                         (int(w_img * 1.00), int(h_img * 1.00)), (255, 255, 0), 5)
+            
         # --- 5. ส่งข้อมูลกลับ ---
         extractor = Extractor(extracted_text)
         parsed_data = extractor.extract_all()

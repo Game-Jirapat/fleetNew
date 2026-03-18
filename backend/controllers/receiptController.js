@@ -117,6 +117,51 @@ exports.processReceipt = async (req, res) => {
   }
 };
 
+// [READ ONE] - ดึงข้อมูลใบเสร็จใบเดียวตาม ID
+exports.getReceiptById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const receipt = await Receipts.findByPk(id, {
+      include: [{
+        model: Users,
+        as: 'users',
+        attributes: ['user_id', 'name', 'role']
+      }]
+    });
+
+    if (!receipt) {
+      return res.status(404).json({ error: "ไม่พบข้อมูลใบเสร็จนี้" });
+    }
+
+    res.status(200).json(receipt);
+  } catch (error) {
+    console.error("❌ Get Receipt Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+// [READ ONE] - ดึงข้อมูลใบเสร็จใบเดียวตาม ID
+exports.getReceiptById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const receipt = await Receipts.findByPk(id, {
+      include: [{
+        model: Users,
+        as: 'users',
+        attributes: ['user_id', 'name', 'role']
+      }]
+    });
+
+    if (!receipt) {
+      return res.status(404).json({ error: "ไม่พบข้อมูลใบเสร็จนี้" });
+    }
+
+    res.status(200).json(receipt);
+  } catch (error) {
+    console.error("❌ Get Receipt Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // [READ ALL] - ดึงรายการทั้งหมดพร้อมข้อมูล User
 exports.getAllReceipts = async (req, res) => {
   try {
@@ -136,16 +181,26 @@ exports.getAllReceipts = async (req, res) => {
 };
 
 // [UPDATE] - แก้ไขสถานะ (Admin Approve/Reject)
+// [UPDATE] - แก้ไขข้อมูลและสถานะ
 exports.updateReceiptStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { approval } = req.body; // 'Approved' หรือ 'Rejected'
+    // รับค่าจากแบบฟอร์มที่ส่งมาจาก Frontend
+    const { approval, license_plate_no, bill_date, egat_address, egat_tax_id } = req.body;
 
     const receipt = await Receipts.findByPk(id);
     if (!receipt) return res.status(404).json({ error: "Receipt not found" });
 
-    await receipt.update({ approval });
-    res.status(200).json({ message: "Status updated", data: receipt });
+    // อัปเดตข้อมูลทุกฟิลด์ที่ส่งมา
+    await receipt.update({
+      approval,
+      license_plate_no,
+      bill_date,
+      egat_address,
+      egat_tax_id
+    });
+
+    res.status(200).json({ message: "อัปเดตข้อมูลสำเร็จ", data: receipt });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
