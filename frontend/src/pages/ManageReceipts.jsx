@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { CheckCircle, XCircle, Trash2, Search, Eye, Filter } from 'lucide-react';
 
@@ -6,6 +7,7 @@ const ManageReceipts = () => {
     const [receipts, setReceipts] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [loading, setLoading] = useState(true);
+    const navigate = useNavigate();
 
     useEffect(() => {
         fetchReceipts();
@@ -158,7 +160,13 @@ const ManageReceipts = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-right space-x-2">
-                                        <button className="p-2 text-gray-400 hover:text-blue-600 transition-colors"><Eye size={18} /></button>
+                                        <button
+                                            onClick={() => navigate(`/admin/receipts/${item.receipt_id}`)} // ✅ ทำการ Navigate ไปยังหน้า Detail ตาม ID
+                                            className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
+                                            title="ดูรายละเอียดและแก้ไข"
+                                        >
+                                            <Eye size={18} />
+                                        </button>
                                         <button
                                             onClick={() => handleDelete(item.receipt_id)}
                                             className="p-2 text-gray-400 hover:text-red-600 transition-colors"

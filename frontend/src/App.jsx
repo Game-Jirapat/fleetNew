@@ -8,6 +8,7 @@ import Dashboard from './pages/AdminDashboard';
 import UploadReceipt from './pages/UploadReceipt';
 import ManageUser from './pages/ManageUsersPage';
 import ManageReceipts from './pages/ManageReceipts';
+import ReceiptDetail from './pages/ReceiptDetail';
 import Navbar from './assets/Navbar';
 
 /**
@@ -52,6 +53,14 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/admin/receipts/:id"
+            element={
+              <ProtectedRoute>
+                <Navbar />
+                <ReceiptDetail />
+              </ProtectedRoute>
+            } />
           <Route
             path="/admin/receipts"
             element={

@@ -113,12 +113,47 @@ const UploadReceipt = () => {
         ...editableFields,
         approval: 'Pending'
       });
+
       setStatusMessage('บันทึกสำเร็จ! ✅');
-      setTimeout(() => navigate('/admin/receipts'), 1500);
+      setIsError(false);
+
+      // ✅ เคลียร์ข้อมูลทั้งหมดหลังจากหน่วงเวลา 1.5 วินาที เพื่อให้ User เห็น Message สำเร็จ
+      setTimeout(() => {
+        resetForm();
+      }, 1500);
+
     } catch (err) {
-      setStatusMessage('บันทึกไม่สำเร็จ: ' + err.message);
+      setStatusMessage('บันทึกไม่สำเร็จ: ' + (err.response?.data?.error || err.message));
       setIsError(true);
     }
+  };
+
+const resetForm = () => {
+    // 1. ล้างข้อมูลไฟล์และรูปภาพ
+    setSelectedFile(null);
+    setImagePreviewUrl(null);
+    setDebugImage(null);
+    
+    // 2. ล้างข้อมูล OCR และสถานะ
+    setParsedData(null); // ✅ สำคัญ: ตัวนี้จะทำให้ Form ใน Step 2 หายไปและกลับเป็น Placeholder
+    setStatusMessage('');
+    setIsError(false);
+    
+    // 3. ล้างค่าใน Input Fields ทั้งหมด
+    setEditableFields({
+      plateNo: '', 
+      transactionDate: '', 
+      egatAddress: '', 
+      egatTaxId: '',
+      dbReceiptId: '' // ล้าง ID ทิ้งด้วยกันพลาดไปอัปเดตตัวเดิม
+    });
+
+    // 4. ล้างค่าใน HTML Input (เพื่อให้เลือกไฟล์เดิมซ้ำได้)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    
+    console.log("🧹 Form has been cleared and ready for next receipt.");
   };
 
   // --- Cropper Logic ---
