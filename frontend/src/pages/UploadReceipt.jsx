@@ -1,48 +1,45 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Cropper from 'react-easy-crop';
-import { Upload, Scissors, Cpu, Save, AlertCircle, CheckCircle2, RotateCcw, FileText } from 'lucide-react';
-import api from '../api/axios'; // ใช้ api instance ที่เราสร้างไว้
+import { Upload, Scissors, Cpu, Save, AlertCircle, CheckCircle2, FileText, ArrowLeft, ArrowRight, Trash2 } from 'lucide-react';
+import api from '../api/axios';
 import getCroppedImg from '../utils/cropImage';
 
 const UploadReceipt = () => {
-  const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
-  // --- States ---
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
+  // --- Global States ---
+  const [currentStep, setCurrentStep] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [isError, setIsError] = useState(false);
-  const [receiptType, setReceiptType] = useState('1');
-  const [debugImage, setDebugImage] = useState(null);
   const [masterData, setMasterData] = useState(null);
+  const [activeRegionIndex, setActiveRegionIndex] = useState(0); // ✅ เก็บว่ากำลังดูกรอบไหน
+  const [confirmedRegions, setConfirmedRegions] = useState({}); // ✅ เก็บสถานะ Check box
+  // --- Image & OCR States ---
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
+  const [debugImage, setDebugImage] = useState(null);
+  const [receiptType, setReceiptType] = useState('1');
   const [parsedData, setParsedData] = useState(null);
 
   // --- Cropper States ---
   const [showCropper, setShowCropper] = useState(false);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
-  const [aspect, setAspect] = useState('free');
+  const [aspect, setAspect] = useState(3 / 2);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
 
-  // --- Editable Fields ---
+  // --- Form States ---
   const [editableFields, setEditableFields] = useState({
-    plateNo: '',
-    transactionDate: '',
-    egatAddress: '',
-    egatTaxId: ''
+    plateNo: '', transactionDate: '', egatAddress: '', egatTaxId: ''
   });
 
   useEffect(() => {
     const fetchMasterData = async () => {
       try {
         const response = await api.get('/master');
-        setMasterData(response.data);
-      } catch (error) {
-        console.error("Error fetching master data:", error);
-      }
+        setMasterData(Array.isArray(response.data) ? response.data[0] : response.data);
+      } catch (error) { console.error("Error fetching master data:", error); }
     };
     fetchMasterData();
   }, []);
@@ -53,111 +50,12 @@ const UploadReceipt = () => {
     if (file) {
       setSelectedFile(file);
       setImagePreviewUrl(URL.createObjectURL(file));
-      setStatusMessage(`เลือกไฟล์: ${file.name}`);
       setIsError(false);
-      setParsedData(null); // Reset ข้อมูลเก่า
-      setDebugImage(null);
     }
   };
 
-  const handleProcessOCR = async () => {
-    if (!selectedFile) return;
-    setIsProcessing(true);
-    setStatusMessage('กำลังวิเคราะห์ใบเสร็จด้วย Python OCR...');
-    setDebugImage(null); // ล้างรูปเก่าก่อนประมวลผลใหม่
-
-    const formData = new FormData();
-    formData.append('image', selectedFile); // Key 'image' ตรงกับ upload.single('image')
-    formData.append('type', receiptType);   // ส่งประเภทใบเสร็จ
-
-    try {
-      // ✅ Step 2: เรียก API ตาม Route และ Schema ใหม่
-      const response = await api.post('/receipts/upload', formData);
-      console.log("🔍 Raw Response Data:", response.data);
-      const { data, parsed_data, debug_image } = response.data;
-      // ✅ แสดงรูปภาพที่ผ่านการประมวลผล (Framed Image)
-      // Backend ส่งมาเป็น Base64 เราต้องเติม Prefix เพื่อให้ <img> แสดงผลได้
-      if (debug_image) {
-        // ตรวจสอบว่าใน String มี Header หรือยัง ถ้ายังไม่มีให้เติมเข้าไป
-        const formattedImage = debug_image.startsWith('data:image')
-          ? debug_image
-          : `data:image/jpeg;base64,${debug_image}`;
-        setDebugImage(formattedImage);
-      }
-
-      // ✅ Step 3: แมปข้อมูลให้ตรงกับ editableFields ตาม Schema
-      const mappedData = {
-        dbReceiptId: data.receipt_id,
-        plateNo: parsed_data.license_plate_no || '',
-        transactionDate: parsed_data.bill_date || '',
-        egatTaxId: parsed_data.egat_tax_id || '',
-        egatAddress: parsed_data.egat_address || '',
-      };
-
-      setParsedData(mappedData);
-      setEditableFields(prev => ({ ...prev, ...mappedData }));
-      setStatusMessage('วิเคราะห์สำเร็จ! กรุณาตรวจสอบและบันทึกข้อมูล');
-    } catch (err) {
-      console.error("OCR Error:", err);
-      setStatusMessage('เกิดข้อผิดพลาด: ' + (err.response?.data?.error || err.message));
-      setIsError(true);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleSaveToDB = async () => {
-    try {
-      setStatusMessage('กำลังบันทึกข้อมูล...');
-      await api.put(`/receipts/${editableFields.dbReceiptId}`, {
-        ...editableFields,
-        approval: 'Pending'
-      });
-
-      setStatusMessage('บันทึกสำเร็จ! ✅');
-      setIsError(false);
-
-      // ✅ เคลียร์ข้อมูลทั้งหมดหลังจากหน่วงเวลา 1.5 วินาที เพื่อให้ User เห็น Message สำเร็จ
-      setTimeout(() => {
-        resetForm();
-      }, 1500);
-
-    } catch (err) {
-      setStatusMessage('บันทึกไม่สำเร็จ: ' + (err.response?.data?.error || err.message));
-      setIsError(true);
-    }
-  };
-
-const resetForm = () => {
-    // 1. ล้างข้อมูลไฟล์และรูปภาพ
-    setSelectedFile(null);
-    setImagePreviewUrl(null);
-    setDebugImage(null);
-    
-    // 2. ล้างข้อมูล OCR และสถานะ
-    setParsedData(null); // ✅ สำคัญ: ตัวนี้จะทำให้ Form ใน Step 2 หายไปและกลับเป็น Placeholder
-    setStatusMessage('');
-    setIsError(false);
-    
-    // 3. ล้างค่าใน Input Fields ทั้งหมด
-    setEditableFields({
-      plateNo: '', 
-      transactionDate: '', 
-      egatAddress: '', 
-      egatTaxId: '',
-      dbReceiptId: '' // ล้าง ID ทิ้งด้วยกันพลาดไปอัปเดตตัวเดิม
-    });
-
-    // 4. ล้างค่าใน HTML Input (เพื่อให้เลือกไฟล์เดิมซ้ำได้)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-    
-    console.log("🧹 Form has been cleared and ready for next receipt.");
-  };
-
-  // --- Cropper Logic ---
   const onCropComplete = useCallback((_, pixels) => setCroppedAreaPixels(pixels), []);
+
   const handleCropSave = async () => {
     const croppedBlob = await getCroppedImg(imagePreviewUrl, croppedAreaPixels);
     const croppedFile = new File([croppedBlob], selectedFile.name, { type: 'image/jpeg' });
@@ -166,215 +64,309 @@ const resetForm = () => {
     setShowCropper(false);
   };
 
+  const handleProcessOCR = async () => {
+    setIsProcessing(true);
+    setStatusMessage('กำลังวิเคราะห์ใบเสร็จ...');
+    const formData = new FormData();
+    formData.append('image', selectedFile);
+    formData.append('type', receiptType);
+
+    try {
+      const response = await api.post('/receipts/upload', formData);
+      const { data, parsed_data, debug_image } = response.data;
+
+      if (debug_image) {
+        setDebugImage(debug_image.startsWith('data:image') ? debug_image : `data:image/jpeg;base64,${debug_image}`);
+      }
+
+      const mappedData = {
+        dbReceiptId: data.receipt_id,
+        plateNo: parsed_data.license_plate_no || '',
+        transactionDate: parsed_data.bill_date || '',
+        egatTaxId: parsed_data.egat_tax_id || '',
+        egatAddress: parsed_data.egat_address || '',
+      };
+      setParsedData(mappedData);
+      setEditableFields(mappedData);
+      setCurrentStep(2); // ✅ ย้ายไป Step 2 เมื่อ OCR เสร็จ
+      setStatusMessage('วิเคราะห์สำเร็จ!');
+    } catch (err) {
+      setIsError(true);
+      setStatusMessage('เกิดข้อผิดพลาด: ' + err.message);
+    } finally { setIsProcessing(false); }
+  };
+
+  const handleSaveToDB = async () => {
+    try {
+      setStatusMessage('กำลังบันทึกข้อมูล...');
+      await api.put(`/receipts/${editableFields.dbReceiptId}`, { ...editableFields, approval: 'Pending' });
+      setStatusMessage('บันทึกสำเร็จ! ✅');
+      setTimeout(() => resetFlow(), 1500);
+    } catch (err) { setIsError(true); setStatusMessage('บันทึกไม่สำเร็จ'); }
+  };
+
+  const resetFlow = () => {
+    setCurrentStep(1);
+    setSelectedFile(null);
+    setImagePreviewUrl(null);
+    setDebugImage(null);
+    setParsedData(null);
+    setStatusMessage('');
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   return (
     <div className="p-6 bg-gray-50 min-h-screen font-sans">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-black text-gray-800 mb-8 flex items-center">
-          <Upload className="mr-3 text-blue-600" /> Upload & Process Receipt
-        </h1>
+      <div className="max-w-4xl mx-auto">
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Step Indicator */}
+        <div className="mb-10 flex items-center justify-between px-4">
+          {[1, 2, 3].map((s) => (
+            <div key={s} className="flex flex-col items-center gap-2">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all ${currentStep >= s ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                {s}
+              </div>
+              <span className={`text-[10px] font-black uppercase ${currentStep >= s ? 'text-blue-600' : 'text-gray-400'}`}>
+                {s === 1 ? 'Upload' : s === 2 ? 'Review Image' : 'Verify Data'}
+              </span>
+            </div>
+          ))}
+        </div>
 
-          {/* Column 1: Upload & Preview */}
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-            <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Scissors size={20} />อัปโหลดและดูตัวอย่าง</h2>
-
-            {/* Upload Area */}
+        {/* --- STEP 1: Upload & Initial Crop --- */}
+        {currentStep === 1 && (
+          <div className="bg-white p-8 rounded-[40px] shadow-xl border border-gray-100 animate-in fade-in zoom-in duration-300">
+            <h2 className="text-2xl font-black mb-6 flex items-center gap-3"><Upload size={28} className="text-blue-600" /> Step 1: อัปโหลดใบเสร็จ</h2>
             <div
               onClick={() => fileInputRef.current.click()}
-              className="aspect-[4/3] border-4 border-dashed border-gray-100 rounded-3xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-200 transition-all bg-gray-50 overflow-hidden"
+              className="aspect-video border-4 border-dashed border-gray-100 rounded-[32px] flex flex-col items-center justify-center cursor-pointer hover:border-blue-200 transition-all bg-gray-50 overflow-hidden"
             >
               {imagePreviewUrl ? (
                 <img src={imagePreviewUrl} className="w-full h-full object-contain" alt="Preview" />
               ) : (
-                <div className="text-center text-gray-300">
-                  <Upload size={48} className="mx-auto mb-2" />
-                  <p className="font-medium text-sm">Click to upload</p>
-                </div>
+                <div className="text-center text-gray-300"><Upload size={64} className="mx-auto mb-4" /><p className="font-bold">คลิกเพื่อเลือกไฟล์รูปภาพ</p></div>
               )}
             </div>
             <input type="file" ref={fileInputRef} hidden onChange={handleImageChange} accept="image/*" />
 
-            {/* Actions */}
-            {imagePreviewUrl && (
-              <button onClick={() => setShowCropper(true)} className="w-full mt-4 py-3 bg-gray-100 text-gray-700 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200">
-                <Scissors size={18} /> Crop Image
-              </button>
-            )}
-
-            {/* Main Action Button */}
-            <button
-              disabled={!selectedFile || isProcessing}
-              onClick={handleProcessOCR}
-              className={`w-full mt-4 py-4 rounded-2xl font-black text-white shadow-lg transition-all flex items-center justify-center gap-2 ${isProcessing ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
-                }`}
-            >
-              {isProcessing ? <><span className="animate-spin text-lg">🌀</span> Processing</> : <><Cpu size={20} /> Start OCR</>}
-            </button>
-          </div>
-
-          {/* Column 2: Form Data */}
-          <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 max-w-4xl mx-auto">
-            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <FileText className="text-black-600" /> ตรวจสอบและยืนยันข้อมูล
-            </h2>
-            {parsedData && (
-              <div className="space-y-6">
-
-                {/* 1. Plate No (ทะเบียนรถ) */}
-                <div className="bg-gray-50/50 p-5 rounded-3xl border border-gray-100">
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">1. Plate No (ทะเบียนรถจากใบเสร็จ)</label>
-                  <input
-                    className="w-full p-4 bg-white border-2 border-gray-100 rounded-2xl outline-none font-bold text-gray-700 focus:border-blue-500 transition-all shadow-sm"
-                    value={editableFields.plateNo}
-                    onChange={(e) => setEditableFields({ ...editableFields, plateNo: e.target.value })}
-                  />
-                </div>
-
-                {/* 2. Transaction Date (วันที่) */}
-                <div className="bg-gray-50/50 p-5 rounded-3xl border border-gray-100">
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">2. Transaction Date (วันที่จากใบเสร็จ)</label>
-                  <input
-                    className="w-full p-4 bg-white border-2 border-gray-100 rounded-2xl outline-none font-bold text-gray-700 focus:border-blue-500 transition-all shadow-sm"
-                    value={editableFields.transactionDate}
-                    onChange={(e) => setEditableFields({ ...editableFields, transactionDate: e.target.value })}
-                  />
-                </div>
-
-                {/* 3. EGAT Address (เทียบที่อยู่) */}
-                <div className="p-6 bg-blue-50/30 rounded-3xl border border-blue-50 space-y-4">
-                  <div>
-                    <label className="block text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">3. EGAT Address (ที่อยู่จากใบเสร็จ)</label>
-                    <textarea
-                      rows="2"
-                      className="w-full p-4 bg-white border-2 border-blue-100 rounded-2xl outline-none font-bold text-gray-700 focus:border-blue-500 shadow-sm"
-                      value={editableFields.egatAddress}
-                      onChange={(e) => setEditableFields({ ...editableFields, egatAddress: e.target.value })}
-                    />
-                  </div>
-                  <div className="pt-2 border-t border-blue-100/50">
-                    <label className="block text-[10px] font-black text-green-500 uppercase tracking-widest mb-2">🎯 Master EGAT Address (ข้อมูลอ้างอิงมาตรฐาน)</label>
-                    <p className="p-4 bg-green-50 border-2 border-green-100 rounded-2xl font-bold text-green-800 text-sm leading-relaxed shadow-sm">
-                      {/[ก-ฮ]/.test(editableFields.egatAddress || "")
-                        ? masterData?.egat_address_th || masterData?.egatAddress
-                        : masterData?.egat_address_eng}
-                    </p>
-                  </div>
-                </div>
-
-                {/* 4. EGAT Tax ID (เทียบเลขภาษี) */}
-                <div className="p-6 bg-orange-50/30 rounded-3xl border border-orange-50 space-y-4">
-                  <div>
-                    <label className="block text-[10px] font-black text-orange-400 uppercase tracking-widest mb-2">4. EGAT Tax ID (เลขภาษีจากใบเสร็จ)</label>
-                    <input
-                      className={`w-full p-4 bg-white border-2 rounded-2xl outline-none font-black text-lg transition-all shadow-sm ${editableFields.egatTaxId !== '0994000244843'
-                        ? 'border-red-300 text-red-600 ring-4 ring-red-50'
-                        : 'border-orange-100 text-gray-700'
-                        }`}
-                      value={editableFields.egatTaxId}
-                      onChange={(e) => setEditableFields({ ...editableFields, egatTaxId: e.target.value })}
-                    />
-                  </div>
-                  <div className="pt-2 border-t border-orange-100/50">
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">🎯 Master EGAT Tax ID (ข้อมูลอ้างอิงมาตรฐาน)</label>
-                    <p className="p-4 bg-gray-100 border-2 border-gray-200 rounded-2xl font-black text-gray-400 text-lg tracking-widest shadow-sm">
-                      0994000244843
-                    </p>
-                  </div>
-                </div>
-
-                {/* ปุ่มบันทึกด้านล่างสุด */}
-                <button
-                  onClick={handleSaveToDB}
-                  disabled={isProcessing}
-                  className="w-full mt-10 py-5 bg-green-500 hover:bg-green-600 text-white rounded-2xl font-black text-xl shadow-xl shadow-green-100 transition-all active:scale-95 flex items-center justify-center gap-3 disabled:bg-gray-200 disabled:shadow-none"
-                >
-                  <Save size={24} /> {isProcessing ? "กำลังบันทึก..." : "Confirm & Save Changes"}
+            <div className="mt-8 flex gap-4">
+              {imagePreviewUrl && (
+                <button onClick={() => setShowCropper(true)} className="flex-1 py-4 bg-gray-100 text-gray-700 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200">
+                  <Scissors size={20} /> Crop Image
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Column 3: image */}
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-            {/* --- ส่วนที่ 2: รูปภาพพรีวิว (Framed Image) --- */}
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-              <p className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-widest text-center">หลักฐานการตรวจสอบ (OCR Vision)</p>
-              {debugImage && (
-                <div className="relative rounded-2xl overflow-hidden border-4 border-gray-50 shadow-inner max-w-4xl mx-auto">
-                  <img src={debugImage} className="w-full h-auto" alt="Processed View" />
-                </div>
               )}
+              <button
+                disabled={!selectedFile || isProcessing}
+                onClick={handleProcessOCR}
+                className={`flex-[2] py-4 rounded-2xl font-black text-white shadow-lg flex items-center justify-center gap-2 ${isProcessing ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'}`}
+              >
+                {isProcessing ? 'Processing...' : <><Cpu size={20} /> Start OCR Process</>}
+              </button>
             </div>
           </div>
-        </div>
-      </div >
+        )}
+
+        {/* 🔍 Step 2: Region-by-Region Verification */}
+
+        {currentStep === 2 && debugImage && (
+          <div className="bg-white p-8 rounded-[40px] shadow-xl border border-gray-100 animate-in fade-in zoom-in duration-300 max-w-2xl mx-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-black flex items-center gap-2 text-gray-800">
+                <Scissors size={24} className="text-orange-500" /> Step 2: ตรวจพิกัดข้อมูล
+              </h2>
+              <span className="text-[10px] bg-gray-100 px-3 py-1 rounded-full font-bold text-gray-400">
+                LAYOUT TYPE: {receiptType}
+              </span>
+            </div>
+
+            {(() => {
+              // กำหนดรายการตรวจสอบตามลำดับที่คุณต้องการ
+              const regions = [
+                { id: 'receiptTaxinvoice', label: '1. ใบกำกับภาษี', color: 'border-blue-500', bg: 'bg-blue-500' },
+                { id: 'plateNo', label: '2. ทะเบียนรถ', color: 'border-green-500', bg: 'bg-green-500' },
+                { id: 'egatData', label: '3. ที่อยู่ กฟผ. และ เลขภาษี กฟผ.', color: 'border-red-500', bg: 'bg-red-500' },
+                { id: 'signature', label: '4. ลายเซ็น', color: 'border-orange-500', bg: 'bg-orange-500' },
+                { id: 'original', label: '5. ต้นฉบับ', color: 'border-cyan-500', bg: 'bg-cyan-500' },
+              ];
+              const currentRegion = regions[activeRegionIndex];
+
+              return (
+                <div className="space-y-8">
+                  {/* --- 1. Cropped Image Area --- */}
+                  <div className={`relative aspect-video rounded-3xl overflow-hidden border-4 bg-gray-900 shadow-2xl transition-all duration-500 ${currentRegion.color}`}>
+                    <img
+                      src={debugImage}
+                      className="w-full h-full object-contain transition-all duration-700 ease-in-out"
+                      alt={currentRegion.label}
+                      style={{
+                        // ✅ ขยายเพิ่มเป็น 2.5 เท่าเพื่อให้เห็นตัวอักษรชัดเจน
+                        transform: `scale(2)`,
+
+                        // ✅ ปรับตำแหน่งการซูมตามลำดับข้อมูลที่สแกน
+                        transformOrigin: (() => {
+                          switch (activeRegionIndex) {
+                            case 0: return '90% 0%';  // 🟩 เน้นทะเบียนรถ (Green Box)
+                            case 1: return '10% 30%';  // 🟦 เน้นวันที่/เลขที่ (Blue Box)
+                            case 2: return '20% 20%';  // 🟥 เน้นที่อยู่ กฟผ. (Red Box)
+                            case 3: return '15% 100%';  // 🟧 เน้นเลขภาษี กฟผ. (Orange Box)
+                            case 4: return '80% 100%';  // 🟦 เน้นต้นฉบับ (Blue Box)
+                            default: return 'center';
+                          }
+                        })()
+                      }}
+                    />
+                    <div className={`absolute top-4 left-4 ${currentRegion.bg} text-white text-[10px] px-3 py-1 rounded-full font-bold shadow-lg`}>
+                      FOCUSING: {currentRegion.label}
+                    </div>
+                  </div>
+
+                  {/* --- 2. Text Content & Confirmation Checkbox --- */}
+                  <div className="flex items-center gap-4 bg-gray-50 p-6 rounded-3xl border border-gray-100 shadow-inner">
+                    <div className="flex-1">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">AI Extracted Text:</p>
+                      <div className="bg-white p-3 rounded-xl border border-gray-100 min-h-[50px] flex items-center">
+                        <span className="text-lg font-bold text-gray-800">
+                          {editableFields[currentRegion.id] || <span className="text-gray-300 italic font-normal">ไม่พบข้อมูล</span>}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      {/* ปุ่ม "ผิด" (Incorrect) */}
+                      <button
+                        onClick={() => setConfirmedRegions({ ...confirmedRegions, [currentRegion.id]: 'incorrect' })}
+                        className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all shadow-md ${confirmedRegions[currentRegion.id] === 'incorrect'
+                          ? 'bg-red-500 text-white scale-110'
+                          : 'bg-white border-2 border-gray-200 text-gray-300 hover:border-red-400'
+                          }`}
+                      >
+                        <XCircle size={28} />
+                      </button>
+
+                      {/* ปุ่ม "ถูก" (Correct) */}
+                      <button
+                        onClick={() => setConfirmedRegions({ ...confirmedRegions, [currentRegion.id]: 'correct' })}
+                        className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all shadow-md ${confirmedRegions[currentRegion.id] === 'correct'
+                          ? 'bg-green-500 text-white scale-110'
+                          : 'bg-white border-2 border-gray-200 text-gray-300 hover:border-green-400'
+                          }`}
+                      >
+                        <CheckCircle2 size={28} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* --- 3. Navigation (Prev / Next) --- */}
+                  <div className="flex items-center justify-between pt-4">
+                    <button
+                      disabled={activeRegionIndex === 0}
+                      onClick={() => setActiveRegionIndex(activeRegionIndex - 1)}
+                      className="p-4 bg-gray-100 text-gray-700 rounded-2xl font-bold disabled:opacity-20 hover:bg-gray-200 transition-all"
+                    >
+                      <ArrowLeft size={24} />
+                    </button>
+
+                    {/* Check Logic: ต้องมีการเลือกสถานะก่อนถึงจะกดไปต่อได้ */}
+                    {activeRegionIndex < regions.length - 1 ? (
+                      <button
+                        disabled={!confirmedRegions[currentRegion.id]} // ✅ ล็อกปุ่มถ้ายังไม่ติ๊ก
+                        onClick={() => setActiveRegionIndex(activeRegionIndex + 1)}
+                        className={`p-4 rounded-2xl font-bold transition-all shadow-lg ${!confirmedRegions[currentRegion.id]
+                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+                          : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-90'
+                          }`}
+                      >
+                        <ArrowRight size={24} />
+                      </button>
+                    ) : (
+                      <button
+                        disabled={!confirmedRegions[currentRegion.id]} // ✅ ล็อกปุ่มสุดท้ายถ้ายังไม่ติ๊ก
+                        onClick={() => setCurrentStep(3)}
+                        className={`px-8 py-4 rounded-2xl font-black shadow-xl transition-all flex items-center gap-2 ${!confirmedRegions[currentRegion.id]
+                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+                          : 'bg-green-500 text-white hover:bg-green-600 animate-bounce-subtle'
+                          }`}
+                      >
+                        Go to Final Step <FileText size={20} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* --- STEP 3: Final Data Verification --- */}
+        {currentStep === 3 && (
+          <div className="bg-white p-8 rounded-[40px] shadow-xl border border-gray-100 animate-in slide-in-from-right duration-400">
+            <h2 className="text-2xl font-black mb-8 flex items-center gap-3 text-green-600 border-b pb-4"><FileText size={28} /> Step 3: ยืนยันข้อมูล</h2>
+
+            <div className="space-y-8">
+              <div className="grid gap-6">
+                <div className="bg-gray-50 p-4 rounded-2xl">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">ทะเบียนรถ</label>
+                  <input className="w-full p-4 bg-white border-2 border-gray-100 rounded-xl font-bold" value={editableFields.plateNo} onChange={e => setEditableFields({ ...editableFields, plateNo: e.target.value })} />
+                </div>
+                <div className="bg-gray-50 p-4 rounded-2xl">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">วันที่ใบเสร็จ</label>
+                  <input className="w-full p-4 bg-white border-2 border-gray-100 rounded-xl font-bold" value={editableFields.transactionDate} onChange={e => setEditableFields({ ...editableFields, transactionDate: e.target.value })} />
+                </div>
+              </div>
+
+              {/* Comparison Section */}
+              <div className="p-6 bg-blue-50/50 rounded-3xl border border-blue-100 space-y-4">
+                <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest block">เปรียบเทียบที่อยู่ (OCR vs Master)</label>
+                <textarea rows="2" className="w-full p-4 bg-white border-2 border-blue-100 rounded-2xl font-bold text-sm" value={editableFields.egatAddress} onChange={e => setEditableFields({ ...editableFields, egatAddress: e.target.value })} />
+                <p className="p-4 bg-green-50 border-2 border-green-100 rounded-2xl font-bold text-green-800 text-xs">
+                  🎯 {/[ก-ฮ]/.test(editableFields.egatAddress) ? masterData?.egat_address_th : masterData?.egat_address_eng}
+                </p>
+              </div>
+
+              <div className="p-6 bg-orange-50/50 rounded-3xl border border-orange-100 space-y-4">
+                <label className="text-[10px] font-black text-orange-400 uppercase tracking-widest block">เลขผู้เสียภาษี กฟผ.</label>
+                <input className={`w-full p-4 bg-white border-2 rounded-2xl font-black ${editableFields.egatTaxId !== '0994000244843' ? 'border-red-300 text-red-600' : 'border-orange-100'}`} value={editableFields.egatTaxId} onChange={e => setEditableFields({ ...editableFields, egatTaxId: e.target.value })} />
+                <p className="text-xs font-black text-gray-400 px-2 uppercase">🎯 Master: 0994000244843</p>
+              </div>
+            </div>
+
+            <div className="mt-10 flex gap-4">
+              <button onClick={() => setCurrentStep(2)} className="flex-1 py-4 bg-gray-100 text-gray-700 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200">
+                <ArrowLeft size={20} /> Back to Image
+              </button>
+              <button onClick={handleSaveToDB} className="flex-[2] py-5 bg-green-500 text-white rounded-[24px] font-black text-xl shadow-xl hover:bg-green-600 transition-all active:scale-95 flex items-center justify-center gap-3">
+                <Save size={24} /> Confirm & Save
+              </button>
+            </div>
+            <button onClick={resetFlow} className="w-full mt-6 flex items-center justify-center gap-2 text-gray-400 font-bold text-sm hover:text-red-500 transition-colors"><Trash2 size={16} /> ล้างข้อมูลและเริ่มใหม่</button>
+          </div>
+        )}
+
+      </div>
 
       {/* --- Cropper Modal --- */}
-      {
-        showCropper && (
-          <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-sm p-8 flex flex-col">
-            <div className="relative flex-1 bg-gray-800 rounded-3xl overflow-hidden">
-              <Cropper
-                image={imagePreviewUrl}
-                crop={crop}
-                zoom={zoom}
-                aspect={aspect === 'free' ? undefined : aspect}
-                onCropChange={setCrop}
-                onZoomChange={setZoom}
-                onCropComplete={onCropComplete}
-              />
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-4 items-center justify-center">
-              {/* Dropdown เลือกสัดส่วน พร้อมเซ็ตประเภทใบเสร็จอัตโนมัติ */}
-              <select
-                value={aspect}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === 'free') {
-                    setAspect('free');
-                  } else {
-                    const numAspect = parseFloat(val);
-                    setAspect(numAspect);
-                    // ✅ ถ้าเลือก 1.5 (3:2) ให้เป็นแบบที่ 1, ถ้าเลือก 0.25 (1:4) ให้เป็นแบบที่ 2
-                    setReceiptType(numAspect === 1.5 ? '1' : '2');
-                  }
-                }}
-                className="p-3 rounded-xl bg-white font-bold text-gray-700 outline-none ring-2 ring-blue-500"
-              >
-                <option value={3 / 2}>3:2 (ใบเสร็จทั่วไป - แบบที่ 1)</option>
-                <option value={1 / 4}>1:4 (ใบเสร็จยาว - แบบที่ 2)</option>
-              </select>
-
-              <button
-                onClick={handleCropSave}
-                className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors"
-              >
-                Apply Crop
-              </button>
-
-              <button
-                onClick={() => setShowCropper(false)}
-                className="px-8 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-xl font-bold transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
+      {showCropper && (
+        <div className="fixed inset-0 z-[100] bg-black/95 p-8 flex flex-col">
+          <div className="relative flex-1 rounded-3xl overflow-hidden"><Cropper image={imagePreviewUrl} crop={crop} zoom={zoom} aspect={aspect} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={onCropComplete} /></div>
+          <div className="mt-6 flex gap-4 justify-center">
+            <select value={aspect} onChange={e => { setAspect(parseFloat(e.target.value)); setReceiptType(e.target.value === "1.5" ? "1" : "2") }} className="p-3 rounded-xl bg-white font-bold outline-none ring-2 ring-blue-500">
+              <option value={3 / 2}>3:2 (Standard)</option>
+              <option value={1 / 4}>1:4 (Long Slip)</option>
+            </select>
+            <button onClick={handleCropSave} className="px-10 py-3 bg-blue-600 text-white rounded-xl font-bold">Apply Crop</button>
+            <button onClick={() => setShowCropper(false)} className="px-10 py-3 bg-gray-700 text-white rounded-xl font-bold">Cancel</button>
           </div>
-        )
-      }
+        </div>
+      )}
 
-      {/* --- Status Toast --- */}
-      {
-        statusMessage && (
-          <div className={`fixed bottom-8 right-8 px-6 py-4 rounded-2xl shadow-2xl flex items-center font-bold ${isError ? 'bg-red-500 text-white' : 'bg-white text-gray-800'}`}>
-            {isError ? <AlertCircle className="mr-2" /> : <CheckCircle2 className="mr-2 text-green-500" />}
-            {statusMessage}
-          </div>
-        )
-      }
-    </div >
+      {/* --- Status Notification --- */}
+      {statusMessage && (
+        <div className={`fixed bottom-8 right-8 px-6 py-4 rounded-2xl shadow-2xl flex items-center font-bold animate-in slide-in-from-right-10 ${isError ? 'bg-red-500 text-white' : 'bg-white text-gray-800'}`}>
+          {isError ? <AlertCircle className="mr-2" /> : <CheckCircle2 className="mr-2 text-green-500" />}
+          {statusMessage}
+        </div>
+      )}
+    </div>
   );
 };
 

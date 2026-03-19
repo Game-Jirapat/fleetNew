@@ -1,10 +1,11 @@
+require("dotenv").config();
 const { spawn } = require("child_process");
 const path = require("path");
 const { Receipts, Users } = require("../models");
 const axios = require("axios");
 const FormData = require("form-data");
 
-const PHP_API_URL = "https://ecar.egat.co.th//up_pic/upload.php";
+const PHP_API_URL = process.env.PHP_API_URL;
 
 const uploadToPHP = async (buffer, filename, mimetype) => {
   const formData = new FormData();

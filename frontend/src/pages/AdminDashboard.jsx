@@ -30,7 +30,7 @@ const AdminDashboard = () => {
         total: receipts.length
     }), [receipts]);
 
-    // เตรียมข้อมูลกราฟ
+    /* เตรียมข้อมูลกราฟ
     const chartData = useMemo(() => {
         const monthly = {};
         receipts.forEach(r => {
@@ -43,7 +43,7 @@ const AdminDashboard = () => {
     }, [receipts]);
 
     if (loading) return <div className="p-10 text-center">กำลังโหลดสถิติ...</div>;
-
+*/
     return (
         <div className="p-6 bg-gray-50 min-h-screen">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -58,7 +58,7 @@ const AdminDashboard = () => {
                 </div>
                 {/* เพิ่ม Stat Card อื่นๆ ตาม Pattern เดียวกัน */}
             </div>
-
+{/* เพิ่ม Stat Card อื่นๆ ตาม Pattern เดียวกัน 
             <div className="bg-white p-6 rounded-2xl shadow-sm mb-8">
                 <h2 className="text-lg font-bold mb-4">ภาพรวมค่าใช้จ่ายรายเดือน</h2>
                 <div className="h-80">
@@ -73,7 +73,7 @@ const AdminDashboard = () => {
                     </ResponsiveContainer>
                 </div>
             </div>
-
+*/}
             {/* Quick Links */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <button onClick={() => navigate('/admin/users')} className="flex items-center p-4 bg-white rounded-xl shadow-sm hover:bg-gray-50 border border-gray-100">
