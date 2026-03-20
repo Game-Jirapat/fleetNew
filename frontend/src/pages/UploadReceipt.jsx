@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import Cropper from 'react-easy-crop';
-import { Upload, Scissors, Cpu, Save, AlertCircle, CheckCircle2, FileText, ArrowLeft, ArrowRight, Trash2 } from 'lucide-react';
+import { Upload, Scissors, Cpu, Save, AlertCircle, CheckCircle2, FileText, ArrowLeft, ArrowRight, Trash2, XCircle } from 'lucide-react';
 import api from '../api/axios';
 import getCroppedImg from '../utils/cropImage';
 
@@ -39,6 +39,7 @@ const UploadReceipt = () => {
       try {
         const response = await api.get('/master');
         setMasterData(Array.isArray(response.data) ? response.data[0] : response.data);
+        console.log("Master data fetched:", response.data);
       } catch (error) { console.error("Error fetching master data:", error); }
     };
     fetchMasterData();
@@ -184,9 +185,10 @@ const UploadReceipt = () => {
               const regions = [
                 { id: 'receiptTaxinvoice', label: '1. ใบกำกับภาษี', color: 'border-blue-500', bg: 'bg-blue-500' },
                 { id: 'plateNo', label: '2. ทะเบียนรถ', color: 'border-green-500', bg: 'bg-green-500' },
-                { id: 'egatData', label: '3. ที่อยู่ กฟผ. และ เลขภาษี กฟผ.', color: 'border-red-500', bg: 'bg-red-500' },
-                { id: 'signature', label: '4. ลายเซ็น', color: 'border-orange-500', bg: 'bg-orange-500' },
-                { id: 'original', label: '5. ต้นฉบับ', color: 'border-cyan-500', bg: 'bg-cyan-500' },
+                { id: 'transactionDate', label: '3. วันที่', color: 'border-purple-500', bg: 'bg-purple-500' },
+                { id: 'egatData', label: '4. ที่อยู่ กฟผ. และ เลขภาษี กฟผ.', color: 'border-red-500', bg: 'bg-red-500' },
+                { id: 'signature', label: '5. ลายเซ็น', color: 'border-orange-500', bg: 'bg-orange-500' },
+                { id: 'original', label: '6. ต้นฉบับ', color: 'border-cyan-500', bg: 'bg-cyan-500' },
               ];
               const currentRegion = regions[activeRegionIndex];
 
@@ -205,11 +207,12 @@ const UploadReceipt = () => {
                         // ✅ ปรับตำแหน่งการซูมตามลำดับข้อมูลที่สแกน
                         transformOrigin: (() => {
                           switch (activeRegionIndex) {
-                            case 0: return '90% 0%';  // 🟩 เน้นทะเบียนรถ (Green Box)
-                            case 1: return '10% 30%';  // 🟦 เน้นวันที่/เลขที่ (Blue Box)
-                            case 2: return '20% 20%';  // 🟥 เน้นที่อยู่ กฟผ. (Red Box)
-                            case 3: return '15% 100%';  // 🟧 เน้นเลขภาษี กฟผ. (Orange Box)
-                            case 4: return '80% 100%';  // 🟦 เน้นต้นฉบับ (Blue Box)
+                            case 0: return '90% 0%';  // เน้นใบเสร็จรับเงิน/ใบกำกับภาษี (Blue Box)
+                            case 1: return '10% 30%';  // เน้นทะเบียนรถ (Green Box)
+                            case 2: return '100% 30%';  // เน้นวันที่ (Purple Box)
+                            case 3: return '20% 20%';  // เน้นที่อยู่ กฟผ. (Red Box)
+                            case 4: return '15% 100%';  // เน้นลายเซ็น (Orange Box)
+                            case 5: return '80% 100%';  // เน้นต้นฉบับ (Cyan Box)
                             default: return 'center';
                           }
                         })()
@@ -300,33 +303,270 @@ const UploadReceipt = () => {
         {/* --- STEP 3: Final Data Verification --- */}
         {currentStep === 3 && (
           <div className="bg-white p-8 rounded-[40px] shadow-xl border border-gray-100 animate-in slide-in-from-right duration-400">
-            <h2 className="text-2xl font-black mb-8 flex items-center gap-3 text-green-600 border-b pb-4"><FileText size={28} /> Step 3: ยืนยันข้อมูล</h2>
+            <div className="flex justify-between items-center mb-8 border-b pb-4">
+              <h2 className="text-2xl font-black flex items-center gap-3 text-green-600">
+                <FileText size={28} /> Step 3: ยืนยันข้อมูล
+              </h2>
+            </div>
 
             <div className="space-y-8">
-              <div className="grid gap-6">
-                <div className="bg-gray-50 p-4 rounded-2xl">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">ทะเบียนรถ</label>
-                  <input className="w-full p-4 bg-white border-2 border-gray-100 rounded-xl font-bold" value={editableFields.plateNo} onChange={e => setEditableFields({ ...editableFields, plateNo: e.target.value })} />
+              {/* receipt/Taxinvoice & Plate Number */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* --- 1. มี receipt/Taxinvoice --- */}
+                <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100 relative transition-all hover:shadow-md">
+                  {/* --- 1. Badge Status (ปรับตำแหน่งให้ลอยสวยๆ) --- */}
+                  <div className={`absolute -top-3 right-6 px-4 py-1.5 rounded-full text-[10px] font-black uppercase shadow-lg tracking-wider z-10 animate-in fade-in slide-in-from-top-2 ${confirmedRegions.receiptTaxinvoice === 'correct' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+                    }`}>
+                    {confirmedRegions.receiptTaxinvoice === 'correct' ? 'มี' : 'ไม่มี'} ใบเสร็จรับเงิน/ใบกำกับภาษี
+                  </div>
+                  {/* --- 2. Label --- */}
+                  <label className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] block mb-4 ml-2">
+                    ใบเสร็จรับเงิน/ใบกำกับภาษี
+                  </label>
+                  {/* --- 3. Image Container (เพิ่ม Margin Bottom และความโค้ง) --- */}
+                  <div className={`relative aspect-video rounded-[24px] overflow-hidden border-2 bg-gray-900 shadow-inner mb-6 transition-all duration-500 ${confirmedRegions.receiptTaxinvoice === 'correct' ? 'border-green-100' : 'border-red-100'
+                    }`}>
+                    <img
+                      src={debugImage}
+                      alt="Debug"
+                      className="w-full h-full object-contain opacity-90"
+                      style={{
+                        transform: `scale(2)`,
+                        transformOrigin: `90% 0%`
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+                  </div>
+                  {/* --- 4. Input Field (เพิ่ม Padding และขนาด) --- */}
+                  <div className="relative">
+                    <p
+                      className={`w-full p-5 bg-gray-50 border-2 rounded-2xl font-black text-lg transition-all outline-none focus:bg-white ${confirmedRegions.plateNo === 'correct'
+                        ? 'border-gray-100 focus:border-blue-500 text-gray-700'
+                        : 'border-red-100 focus:border-red-500 text-red-600'
+                        }`}
+                    >
+                      {confirmedRegions.receiptTaxinvoice === 'correct' ? (
+                        "ใบเสร็จนี้มีคำว่า ใบเสร็จรับเงิน/ใบกำกับภาษี"
+                      ) : (
+                        "ใบเสร็จนี้ไม่มีคำว่า ใบเสร็จรับเงิน/ใบกำกับภาษี"
+                      )}
+                    </p>
+                  </div>
                 </div>
-                <div className="bg-gray-50 p-4 rounded-2xl">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">วันที่ใบเสร็จ</label>
-                  <input className="w-full p-4 bg-white border-2 border-gray-100 rounded-xl font-bold" value={editableFields.transactionDate} onChange={e => setEditableFields({ ...editableFields, transactionDate: e.target.value })} />
+
+                {/* --- 2. ทะเบียนรถ --- */}
+                <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100 relative transition-all hover:shadow-md">
+                  {/* --- 1. Badge Status (ปรับตำแหน่งให้ลอยสวยๆ) --- */}
+                  <div className={`absolute -top-3 right-6 px-4 py-1.5 rounded-full text-[10px] font-black uppercase shadow-lg tracking-wider z-10 animate-in fade-in slide-in-from-top-2 ${confirmedRegions.plateNo === 'correct' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+                    }`}>
+                    {confirmedRegions.plateNo === 'correct' ? 'มี' : 'ไม่มี'} พิกัดทะเบียนรถ
+                  </div>
+                  {/* --- 2. Label --- */}
+                  <label className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] block mb-4 ml-2">
+                    ทะเบียนรถ
+                  </label>
+                  {/* --- 3. Image Container (เพิ่ม Margin Bottom และความโค้ง) --- */}
+                  <div className={`relative aspect-video rounded-[24px] overflow-hidden border-2 bg-gray-900 shadow-inner mb-6 transition-all duration-500 ${confirmedRegions.plateNo === 'correct' ? 'border-green-100' : 'border-red-100'
+                    }`}>
+                    <img
+                      src={debugImage}
+                      alt="Debug"
+                      className="w-full h-full object-contain opacity-90"
+                      style={{
+                        transform: `scale(3.5)`,
+                        transformOrigin: `15% 40%`
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+                  </div>
+                  {/* --- 4. Input Field (เพิ่ม Padding และขนาด) --- */}
+                  <div className="relative">
+                    <p
+                      className={`w-full p-5 bg-gray-50 border-2 rounded-2xl font-black text-lg transition-all outline-none focus:bg-white ${confirmedRegions.plateNo === 'correct'
+                        ? 'border-gray-100 focus:border-blue-500 text-gray-700'
+                        : 'border-red-100 focus:border-red-500 text-red-600'
+                        }`}
+                    >
+                      {confirmedRegions.plateNo === 'correct' ? (
+                        "ใบเสร็จนี้มีเลขทะเบียนรถ"
+                      ) : (
+                        "ใบเสร็จนี้ไม่มีเลขทะเบียนรถ"
+                      )}
+                    </p>
+                    <input
+                      className={`w-full p-5 bg-gray-50 border-2 rounded-2xl font-black text-lg transition-all outline-none focus:bg-white ${confirmedRegions.plateNo === 'correct'
+                        ? 'border-gray-100 focus:border-blue-500 text-gray-700'
+                        : 'border-red-100 focus:border-red-500 text-red-600'
+                        }`}
+                      value={editableFields.plateNo}
+                      placeholder="กรอกทะเบียนรถ..."
+                      onChange={e => setEditableFields({ ...editableFields, plateNo: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* Comparison Section */}
-              <div className="p-6 bg-blue-50/50 rounded-3xl border border-blue-100 space-y-4">
-                <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest block">เปรียบเทียบที่อยู่ (OCR vs Master)</label>
-                <textarea rows="2" className="w-full p-4 bg-white border-2 border-blue-100 rounded-2xl font-bold text-sm" value={editableFields.egatAddress} onChange={e => setEditableFields({ ...editableFields, egatAddress: e.target.value })} />
-                <p className="p-4 bg-green-50 border-2 border-green-100 rounded-2xl font-bold text-green-800 text-xs">
-                  🎯 {/[ก-ฮ]/.test(editableFields.egatAddress) ? masterData?.egat_address_th : masterData?.egat_address_eng}
-                </p>
+              {/* วันที่ & signature */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* --- 3. วันที่ --- */}
+                <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100 relative transition-all hover:shadow-md">
+                  {/* --- 1. Badge Status (ปรับตำแหน่งให้ลอยสวยๆ) --- */}
+                  <div className={`absolute -top-3 right-6 px-4 py-1.5 rounded-full text-[10px] font-black uppercase shadow-lg tracking-wider z-10 animate-in fade-in slide-in-from-top-2 ${confirmedRegions.transactionDate === 'correct' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+                    }`}>
+                    {confirmedRegions.transactionDate === 'correct' ? 'มี' : 'ไม่มี'} วันที่ใบเสร็จ
+                  </div>
+                  {/* --- 2. Label --- */}
+                  <label className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] block mb-4 ml-2">
+                    วันที่ใบเสร็จ
+                  </label>
+                  {/* --- 3. Image Container (เพิ่ม Margin Bottom และความโค้ง) --- */}
+                  <div className={`relative aspect-video rounded-[24px] overflow-hidden border-2 bg-gray-900 shadow-inner mb-6 transition-all duration-500 ${confirmedRegions.transactionDate === 'correct' ? 'border-green-100' : 'border-red-100'
+                    }`}>
+                    <img
+                      src={debugImage}
+                      alt="Debug"
+                      className="w-full h-full object-contain opacity-90"
+                      style={{
+                        transform: `scale(2)`,
+                        transformOrigin: `100% 30%`
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+                  </div>
+                  {/* --- 4. Input Field (เพิ่ม Padding และขนาด) --- */}
+                  <div className="relative">
+                    <p
+                      className={`w-full p-5 bg-gray-50 border-2 rounded-2xl font-black text-lg transition-all outline-none focus:bg-white ${confirmedRegions.plateNo === 'correct'
+                        ? 'border-gray-100 focus:border-blue-500 text-gray-700'
+                        : 'border-red-100 focus:border-red-500 text-red-600'
+                        }`}
+                    >
+                      {confirmedRegions.transactionDate === 'correct' ? (
+                        "ใบเสร็จนี้มีวันที่ใบเสร็จ"
+                      ) : (
+                        "ใบเสร็จนี้ไม่มีวันที่ใบเสร็จ"
+                      )}
+                    </p>
+                    <input
+                      className={`w-full p-5 bg-gray-50 border-2 rounded-2xl font-black text-lg transition-all outline-none focus:bg-white ${confirmedRegions.plateNo === 'correct'
+                        ? 'border-gray-100 focus:border-blue-500 text-gray-700'
+                        : 'border-red-100 focus:border-red-500 text-red-600'
+                        }`}
+                      value={editableFields.transactionDate}
+                      placeholder="กรอกวันที่ใบเสร็จ..."
+                      onChange={e => setEditableFields({ ...editableFields, transactionDate: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                {/* --- 4. signature --- */}
+                <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100 relative transition-all hover:shadow-md">
+                  {/* --- 1. Badge Status (ปรับตำแหน่งให้ลอยสวยๆ) --- */}
+                  <div className={`absolute -top-3 right-6 px-4 py-1.5 rounded-full text-[10px] font-black uppercase shadow-lg tracking-wider z-10 animate-in fade-in slide-in-from-top-2 ${confirmedRegions.signature === 'correct' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+                    }`}>
+                    {confirmedRegions.signature === 'correct' ? 'มี' : 'ไม่มี'} ลายเซ็น
+                  </div>
+                  {/* --- 2. Label --- */}
+                  <label className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] block mb-4 ml-2">
+                    ลายเซ็น
+                  </label>
+                  {/* --- 3. Image Container (เพิ่ม Margin Bottom และความโค้ง) --- */}
+                  <div className={`relative aspect-video rounded-[24px] overflow-hidden border-2 bg-gray-900 shadow-inner mb-6 transition-all duration-500 ${confirmedRegions.signature === 'correct' ? 'border-green-100' : 'border-red-100'
+                    }`}>
+                    <img
+                      src={debugImage}
+                      alt="Debug"
+                      className="w-full h-full object-contain opacity-90"
+                      style={{
+                        transform: `scale(2)`,
+                        transformOrigin: `15% 100%`
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+                  </div>
+                  {/* --- 4. Input Field (เพิ่ม Padding และขนาด) --- */}
+                  <div className="relative">
+                    <p
+                      className={`w-full p-5 bg-gray-50 border-2 rounded-2xl font-black text-lg transition-all outline-none focus:bg-white ${confirmedRegions.signature === 'correct'
+                        ? 'border-gray-100 focus:border-blue-500 text-gray-700'
+                        : 'border-red-100 focus:border-red-500 text-red-600'
+                        }`}
+                    >
+                      {confirmedRegions.signature === 'correct' ? (
+                        "ใบเสร็จนี้มีลายเซ็น"
+                      ) : (
+                        "ใบเสร็จนี้ไม่มีลายเซ็น"
+                      )}
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <div className="p-6 bg-orange-50/50 rounded-3xl border border-orange-100 space-y-4">
-                <label className="text-[10px] font-black text-orange-400 uppercase tracking-widest block">เลขผู้เสียภาษี กฟผ.</label>
-                <input className={`w-full p-4 bg-white border-2 rounded-2xl font-black ${editableFields.egatTaxId !== '0994000244843' ? 'border-red-300 text-red-600' : 'border-orange-100'}`} value={editableFields.egatTaxId} onChange={e => setEditableFields({ ...editableFields, egatTaxId: e.target.value })} />
-                <p className="text-xs font-black text-gray-400 px-2 uppercase">🎯 Master: 0994000244843</p>
+              {/*  Egat Data */}
+              <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
+                {/* Egat Address */}
+                <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100 relative transition-all hover:shadow-md">
+                  {/* --- 1. Badge Status (ปรับตำแหน่งให้ลอยสวยๆ) --- */}
+                  <div className={`absolute -top-3 right-6 px-4 py-1.5 rounded-full text-[10px] font-black uppercase shadow-lg tracking-wider z-10 animate-in fade-in slide-in-from-top-2 ${confirmedRegions.egatData === 'correct' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+                    }`}>
+                    {confirmedRegions.egatData === 'correct' ? 'มี' : 'ไม่มี'} ข้อมูลกฟผ.
+                  </div>
+                  {/* --- 2. Label --- */}
+                  <label className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] block mb-4 ml-2">
+                    ที่อยู่ กฟผ. และ เลขภาษี กฟผ.
+                  </label>
+                  {/* --- 3. Image Container (เพิ่ม Margin Bottom และความโค้ง) --- */}
+                  <div className={`relative aspect-video rounded-[24px] overflow-hidden border-2 bg-gray-900 shadow-inner mb-6 transition-all duration-500 ${confirmedRegions.signature === 'correct' ? 'border-green-100' : 'border-red-100'
+                    }`}>
+                    <img
+                      src={debugImage}
+                      alt="Debug"
+                      className="w-full h-full object-contain opacity-90"
+                      style={{
+                        transform: `scale(2)`,
+                        transformOrigin: `20% 20%`
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+                  </div>
+                  {/* --- 4. Input Field (เพิ่ม Padding และขนาด) --- */}
+                  <div className="relative">
+                    <p
+                      className={`w-full p-5 bg-gray-50 border-2 rounded-2xl font-black text-lg transition-all outline-none focus:bg-white ${confirmedRegions.egatData === 'correct'
+                        ? 'border-gray-100 focus:border-blue-500 text-gray-700'
+                        : 'border-red-100 focus:border-red-500 text-red-600'
+                        }`}
+                    >
+                      {confirmedRegions.egatData === 'correct' ? (
+                        "ใบเสร็จนี้มีข้อมูลกฟผ."
+                      ) : (
+                        "ใบเสร็จนี้ไม่มีข้อมูลกฟผ."
+                      )}
+                    </p>
+                    <input
+                      className={`w-full p-5 bg-gray-50 border-2 rounded-2xl font-black text-lg transition-all outline-none focus:bg-white ${confirmedRegions.egatData === 'correct'
+                        ? 'border-gray-100 focus:border-blue-500 text-gray-700'
+                        : 'border-red-100 focus:border-red-500 text-red-600'
+                        }`}
+                      value={editableFields.egatAddress}
+                      placeholder="กรอกที่อยู่ กฟผ..."
+                      onChange={e => setEditableFields({ ...editableFields, egatAddress: e.target.value })}
+                    />
+                    <br />
+                    <p className="text-xs font-black text-gray-400 px-2 uppercase">Master {masterData.egat_address_th}</p>
+                    <input
+                      className={`w-full p-5 bg-gray-50 border-2 rounded-2xl font-black text-lg transition-all outline-none focus:bg-white ${confirmedRegions.egatData === 'correct'
+                        ? 'border-gray-100 focus:border-blue-500 text-gray-700'
+                        : 'border-red-100 focus:border-red-500 text-red-600'
+                        }`}
+                      value={editableFields.egatTaxId}
+                      placeholder="กรอกเลขผู้เสียภาษี กฟผ..."
+                      onChange={e => setEditableFields({ ...editableFields, egatTaxId: e.target.value })}
+                    />
+                    <br />
+                    <p className="text-xs font-black text-gray-400 px-2 uppercase">Master {masterData.egat_tax_id}</p>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -338,7 +578,9 @@ const UploadReceipt = () => {
                 <Save size={24} /> Confirm & Save
               </button>
             </div>
-            <button onClick={resetFlow} className="w-full mt-6 flex items-center justify-center gap-2 text-gray-400 font-bold text-sm hover:text-red-500 transition-colors"><Trash2 size={16} /> ล้างข้อมูลและเริ่มใหม่</button>
+            <button onClick={resetFlow} className="w-full mt-6 flex items-center justify-center gap-2 text-gray-400 font-bold text-sm hover:text-red-500 transition-colors">
+              <Trash2 size={16} /> ล้างข้อมูลและเริ่มใหม่
+            </button>
           </div>
         )}
 
