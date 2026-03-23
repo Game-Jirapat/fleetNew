@@ -84,6 +84,12 @@ def process_ocr():
                          (int(w_img * 0.48), int(h_img * 0.75)), 
                          (int(w_img * 0.98), int(h_img * 0.98)), (0, 165, 255), 3)
             
+            # 🟦 6. กรอบcyan (ขวากลาง) - วันที่
+            # เริ่มประมาณ x=48% ถึงขอบขวา, y=75% ถึง 100%
+            cv2.rectangle(debug_output_img, 
+                         (int(w_img * 0.48), int(h_img * 0.25)), 
+                         (int(w_img * 0.98), int(h_img * 0.50)), (255, 255, 0), 3)
+            
         elif receipt_type == "2":
             # 📝 โครงสำหรับการตีกรอบแบบที่ 2 (เช่น Thermal Slip)
             # แยกเงื่อนไขหรือ Keywords ต่างกันได้ที่นี่
@@ -100,22 +106,24 @@ def process_ocr():
             h_img, w_img = debug_output_img.shape[:2]
 
             # 🟦 1. กรอบสีน้ำเงิน (กลางบน) - หัวข้อ TAX INVOICE / ผู้ขาย
-            # เริ่มประมาณ x=2% ถึง 98%, y=50% ถึง 58%
             cv2.rectangle(debug_output_img, 
                          (int(w_img * 0.02), int(h_img * 0.50)), 
-                         (int(w_img * 0.98), int(h_img * 0.58)), (255, 0, 0), 3)
+                         (int(w_img * 0.98), int(h_img * 0.60)), (255, 0, 0), 3)
 
             # 🟥 2. กรอบสีแดง (กลางล่าง) - ยอดรวม และ ทะเบียนรถ (Plate No)
-            # เริ่มประมาณ x=2% ถึง 98%, y=75% ถึง 82%
-            cv2.rectangle(debug_output_img, 
+            cv2.rectangle(debug_output_img,
                          (int(w_img * 0.02), int(h_img * 0.75)), 
                          (int(w_img * 0.98), int(h_img * 0.82)), (0, 0, 255), 3)
 
             # 🟩 3. กรอบสีเขียว (ล่างสุด) - ข้อมูลลูกค้า (กฟผ.) / ที่อยู่ และเลขภาษี
-            # เริ่มประมาณ x=2% ถึง 98%, y=83% ถึง 98%
             cv2.rectangle(debug_output_img, 
                          (int(w_img * 0.02), int(h_img * 0.83)), 
                          (int(w_img * 0.98), int(h_img * 0.98)), (0, 255, 0), 3)
+            
+            # 🟩 4. กรอบสีเขียว (วันที่) - วันที่
+            cv2.rectangle(debug_output_img, 
+                         (int(w_img * 0.02), int(h_img * 0.65)), 
+                         (int(w_img * 0.98), int(h_img * 0.70)), (0, 255, 0), 3)
             
         # --- 5. ส่งข้อมูลกลับ ---
         extractor = Extractor(extracted_text)
