@@ -64,7 +64,7 @@ def process_ocr():
             # เริ่มประมาณ x=0% ถึง 60%, y=18% ถึง 35%
             cv2.rectangle(debug_output_img, 
                          (int(w_img * 0.02), int(h_img * 0.18)), 
-                         (int(w_img * 0.60), int(h_img * 0.40)), (0, 0, 255), 3)
+                         (int(w_img * 0.60), int(h_img * 0.50)), (0, 0, 255), 3)
 
             # 🟩 3. กรอบสีเขียว (กลางซ้าย) - ทะเบียนรถ
             # เริ่มประมาณ x=0% ถึง 25%, y=35% ถึง 45%
@@ -112,18 +112,18 @@ def process_ocr():
 
             # 🟥 2. กรอบสีแดง (กลางล่าง) - ยอดรวม และ ทะเบียนรถ (Plate No)
             cv2.rectangle(debug_output_img,
-                         (int(w_img * 0.02), int(h_img * 0.75)), 
-                         (int(w_img * 0.98), int(h_img * 0.82)), (0, 0, 255), 3)
+                         (int(w_img * 0.02), int(h_img * 0.76)), 
+                         (int(w_img * 0.98), int(h_img * 0.79)), (0, 0, 255), 3)
 
             # 🟩 3. กรอบสีเขียว (ล่างสุด) - ข้อมูลลูกค้า (กฟผ.) / ที่อยู่ และเลขภาษี
             cv2.rectangle(debug_output_img, 
-                         (int(w_img * 0.02), int(h_img * 0.83)), 
+                         (int(w_img * 0.02), int(h_img * 0.80)), 
                          (int(w_img * 0.98), int(h_img * 0.98)), (0, 255, 0), 3)
             
-            # 🟩 4. กรอบสีเขียว (วันที่) - วันที่
+            # 🟩 4. กรอบ(วันที่) - วันที่
             cv2.rectangle(debug_output_img, 
-                         (int(w_img * 0.02), int(h_img * 0.65)), 
-                         (int(w_img * 0.98), int(h_img * 0.70)), (0, 255, 0), 3)
+                         (int(w_img * 0.02), int(h_img * 0.61)), 
+                         (int(w_img * 0.98), int(h_img * 0.75)), (0, 255, 255), 3)
             
         # --- 5. ส่งข้อมูลกลับ ---
         extractor = Extractor(extracted_text)

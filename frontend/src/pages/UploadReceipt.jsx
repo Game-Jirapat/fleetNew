@@ -3,6 +3,7 @@ import Cropper from 'react-easy-crop';
 import { Upload, Scissors, Cpu, Save, AlertCircle, CheckCircle2, FileText, ArrowLeft, ArrowRight, Trash2, XCircle } from 'lucide-react';
 import api from '../api/axios';
 import getCroppedImg from '../utils/cropImage';
+import ConfirmDeleteModal from '../assets/ConfirmDeleteModal'
 
 const UploadReceipt = () => {
   const fileInputRef = useRef(null);
@@ -15,6 +16,7 @@ const UploadReceipt = () => {
   const [masterData, setMasterData] = useState(null);
   const [activeRegionIndex, setActiveRegionIndex] = useState(0); // ✅ เก็บว่ากำลังดูกรอบไหน
   const [confirmedRegions, setConfirmedRegions] = useState({}); // ✅ เก็บสถานะ Check box
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   // --- Image & OCR States ---
   const [selectedFile, setSelectedFile] = useState(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
@@ -106,14 +108,36 @@ const UploadReceipt = () => {
     } catch (err) { setIsError(true); setStatusMessage('บันทึกไม่สำเร็จ'); }
   };
 
-  const resetFlow = () => {
+  const resetFlow = async () => {
+    // ✅ ถ้ามี ID ของใบเสร็จที่เพิ่งสร้าง ให้สั่งลบใน DB ด้วย
+    if (editableFields.dbReceiptId) {
+      try {
+        await api.delete(`/receipts/${editableFields.dbReceiptId}`);
+        console.log("Deleted temporary record from DB");
+      } catch (err) {
+        console.error("Failed to delete record:", err);
+      }
+    }
+
+    // ล้าง State เดิมของคุณ
     setCurrentStep(1);
     setSelectedFile(null);
     setImagePreviewUrl(null);
     setDebugImage(null);
     setParsedData(null);
-    setStatusMessage('');
+    setConfirmedRegions({}); // ล้างค่าที่ติ๊กไว้ด้วย
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const executeDelete = async () => {
+    if (editableFields.dbReceiptId) {
+      try {
+        await api.delete(`/receipts/${editableFields.dbReceiptId}`);
+        resetFlow(); // ล้าง State หน้าจอ
+      } catch (err) {
+        console.error("Delete failed");
+      }
+    }
   };
 
   return (
@@ -167,8 +191,7 @@ const UploadReceipt = () => {
           </div>
         )}
 
-        {/* 🔍 Step 2: Region-by-Region Verification */}
-
+        {/* --- Step 2: Region-by-Region Verification */}
         {currentStep === 2 && debugImage && (
           <div className="bg-white p-8 rounded-[40px] shadow-xl border border-gray-100 animate-in fade-in zoom-in duration-300 max-w-2xl mx-auto">
             <div className="flex justify-between items-center mb-6">
@@ -182,14 +205,19 @@ const UploadReceipt = () => {
 
             {(() => {
               // กำหนดรายการตรวจสอบตามลำดับที่คุณต้องการ
-              const regions = [
-                { id: 'receiptTaxinvoice', label: '1. ใบกำกับภาษี', color: 'border-blue-500', bg: 'bg-blue-500', type: 'question', question: 'มีคำว่า ใบเสร็จรับเงิน/ใบกำกับภาษี หรือไม่?' },
+              const allRegions = [
+                { id: 'receiptTaxinvoice', label: '1. ใบกำกับภาษี', color: 'border-blue-500', bg: 'bg-blue-500', type: 'question', question: 'มีคำว่า ใบเสร็จรับเงิน/ใบกำกับภาษี หรือ Tax invoice/Receipt หรือไม่?' },
                 { id: 'plateNo', label: '2. ทะเบียนรถ', color: 'border-green-500', bg: 'bg-green-500', type: 'edit' },
-                { id: 'transactionDate', label: '3. วันที่', color: 'border-purple-500', bg: 'bg-purple-500', type: 'edit' },
+                { id: 'transactionDate', label: '3. วันที่', color: 'border-cyan-500', bg: 'bg-cyan-500', type: 'edit' },
                 { id: 'egatData', label: '4. ที่อยู่ กฟผ. และ เลขภาษี กฟผ.', color: 'border-red-500', bg: 'bg-red-500', type: 'question', question: 'มีที่อยู่ และเลขภาษี กฟผ. หรือไม่?' },
-                { id: 'signature', label: '5. ลายเซ็น', color: 'border-orange-500', bg: 'bg-orange-500', type: 'question', question: 'มีลายเซ็นหรือไม่?' },
-                { id: 'original', label: '6. ต้นฉบับ', color: 'border-cyan-500', bg: 'bg-cyan-500', type: 'question', question: 'เป็นเอกสารฉบับจริง/ต้นฉบับหรือไม่?' },
+                { id: 'signature', label: '5. ลายเซ็น', color: 'border-pink-500', bg: 'bg-pink-500', type: 'question', question: 'มีลายเซ็นหรือไม่?' },
+                { id: 'original', label: '6. ต้นฉบับ', color: 'border-yellow-500', bg: 'bg-yellow-500', type: 'question', question: 'เป็นเอกสารฉบับจริง/ต้นฉบับหรือไม่?' },
               ];
+
+              const regions = receiptType === '2'
+                ? allRegions.filter(r => r.id !== 'signature')
+                : allRegions;
+
               const currentRegion = regions[activeRegionIndex];
 
               return (
@@ -202,30 +230,29 @@ const UploadReceipt = () => {
                       alt={currentRegion.label}
                       style={{
                         // ✅ เพิ่ม Scale ให้สูงขึ้นสำหรับใบเสร็จยาวเพื่อให้เห็นตัวอักษรชัด
-                        transform: `scale(${receiptType === '2' ? '2.8' : '2.2'})`,
+                        transform: `scale(${receiptType === '2' ? '5' : '2'})`,
 
                         transformOrigin: (() => {
                           // --- 📂 CASE: ใบเสร็จแบบยาว (Long Slip / Type 2) ---
                           if (receiptType === '2') {
-                            switch (activeRegionIndex) {
-                              case 0: return '50% 60%';  // 🟦 กลางบน: หัวข้อ TAX INVOICE
-                              case 1: return '50% 90%';  // 🟩 กลางล่าง: ทะเบียนรถ
-                              case 2: return '50% 70%';  // 🟪 กลางล่าง: วันที่
-                              case 3: return '50% 99%';  // 🟥 ล่างสุด: ข้อมูล กฟผ.
-                              case 4: return '50% 100%';  // 🔲 ล่างขวา: ต้นฉบับ
-                              case 5: return '50% 100%';  // 🔲 ล่างขวา: ต้นฉบับ
+                            switch (currentRegion.id) {
+                              case 'receiptTaxinvoice': return '50% 60%';  //หัวข้อ TAX INVOICE
+                              case 'plateNo': return '50% 90%';  //ทะเบียนรถ
+                              case 'transactionDate': return '50% 70%'; //วันที่
+                              case 'egatData': return '50% 99%';  //ข้อมูล กฟผ.
+                              case 'original': return '50% 100%';  //ต้นฉบับ
                               default: return 'center';
                             }
                           }
                           // --- 📂 CASE: ใบเสร็จทั่วไป (Standard / Type 1) ---
                           else {
-                            switch (activeRegionIndex) {
-                              case 0: return '90% 5%';   // 🟦 ขวาบน: หัวข้อใบเสร็จ
-                              case 1: return '15% 40%';  // 🟩 กลางซ้าย: ทะเบียนรถ
-                              case 2: return '90% 35%';  // 🟪 กลางขวา: วันที่
-                              case 3: return '15% 25%';  // 🟥 กลางบน: ข้อมูล กฟผ.
-                              case 4: return '15% 95%';  // 🟧 ล่างซ้าย: ลายเซ็น
-                              case 5: return '90% 95%';  // 🔲 ล่างขวา: ต้นฉบับ
+                            switch (currentRegion.id) {
+                              case 'receiptTaxinvoice': return '90% 5%';
+                              case 'plateNo': return '15% 40%';
+                              case 'transactionDate': return '90% 35%';
+                              case 'egatData': return '15% 25%';
+                              case 'signature': return '15% 95%';
+                              case 'original': return '90% 95%';
                               default: return 'center';
                             }
                           }
@@ -260,7 +287,6 @@ const UploadReceipt = () => {
                           >
                             <XCircle size={20} /> พิกัดไม่ตรง
                           </button>
-
                           <button
                             onClick={() => setConfirmedRegions({ ...confirmedRegions, [currentRegion.id]: 'correct' })}
                             className={`flex-1 py-4 rounded-2xl font-black border-2 transition-all flex items-center justify-center gap-2 ${confirmedRegions[currentRegion.id] === 'correct' ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-gray-200 text-gray-400'
@@ -368,9 +394,28 @@ const UploadReceipt = () => {
               {/* --- Section 1: Core Receipt Data (Grid 3 Columns) --- */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
                 {[
-                  { label: 'ใบเสร็จรับเงิน', value: confirmedRegions.receiptTaxinvoice === 'correct' ? 'ตรวจสอบพบ' : 'ไม่พบข้อมูล', status: confirmedRegions.receiptTaxinvoice, origin: '90% 0%', scale: 2 },
-                  { label: 'ทะเบียนรถ', value: editableFields.plateNo || 'N/A', status: confirmedRegions.plateNo, origin: '15% 40%', scale: 3.5 },
-                  { label: 'วันที่ใบเสร็จ', value: editableFields.transactionDate || 'N/A', status: confirmedRegions.transactionDate, origin: '100% 30%', scale: 2 }
+                  {
+                    label: 'ใบเสร็จรับเงิน',
+                    value: confirmedRegions.receiptTaxinvoice === 'correct' ? 'ตรวจสอบพบ' : 'ไม่พบข้อมูล',
+                    status: confirmedRegions.receiptTaxinvoice,
+                    // ✅ ปรับ Origin ตามประเภทใบเสร็จ
+                    origin: receiptType === '2' ? '50% 60%' : '90% 0%',
+                    scale: receiptType === '2' ? 3.5 : 2
+                  },
+                  {
+                    label: 'ทะเบียนรถ',
+                    value: editableFields.plateNo || 'N/A',
+                    status: confirmedRegions.plateNo,
+                    origin: receiptType === '2' ? '50% 80%' : '15% 40%',
+                    scale: receiptType === '2' ? 3.5 : 3.5
+                  },
+                  {
+                    label: 'วันที่ใบเสร็จ',
+                    value: editableFields.transactionDate || 'N/A',
+                    status: confirmedRegions.transactionDate,
+                    origin: receiptType === '2' ? '50% 75%' : '100% 30%',
+                    scale: receiptType === '2' ? 3.5 : 2.5
+                  }
                 ].map((item, idx) => (
                   <div key={idx} className="bg-gray-50/50 p-6 rounded-[32px] border border-gray-100 relative transition-all hover:bg-white hover:shadow-md">
                     <div className={`absolute -top-3 right-4 px-3 py-1 rounded-full text-[9px] font-black uppercase shadow-sm ${item.status === 'correct' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
@@ -390,7 +435,7 @@ const UploadReceipt = () => {
               </div>
 
               {/* --- Section 2: EGAT Validation (Full Width) --- */}
-              <div className={`p-8 rounded-[40px] border-2 transition-all ${confirmedRegions.egatData === 'correct' ? 'bg-blue-50/30 border-blue-100' : 'bg-red-50/30 border-red-100'}`}>
+              <div className={`p-8 rounded-[40px] border-2 border-transparent transition-all bg-gray-50/50`}>
                 <div className="flex items-center justify-between mb-6">
                   <label className="text-[11px] font-black text-blue-500 uppercase tracking-[0.2em]">ข้อมูลที่อยู่และเลขภาษี กฟผ.</label>
                   <span className={`px-4 py-1 rounded-full text-[10px] font-black ${confirmedRegions.egatData === 'correct' ? 'bg-blue-500 text-white' : 'bg-red-500 text-white'}`}>
@@ -400,12 +445,19 @@ const UploadReceipt = () => {
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
                   <div className="aspect-video rounded-3xl overflow-hidden border-4 border-white shadow-xl bg-gray-900">
-                    <img src={debugImage} className="w-full h-full object-contain" style={{ transform: 'scale(2)', transformOrigin: '20% 20%' }} />
+                    <img
+                      src={debugImage}
+                      className="w-full h-full object-contain"
+                      style={{
+                        transform: receiptType === '2' ? 'scale(5)' : 'scale(2)',
+                        transformOrigin: receiptType === '2' ? '50% 100%' : '20% 20%'
+                      }}
+                    />
                   </div>
                   <div className="space-y-6">
                     <div className="bg-white/60 p-5 rounded-2xl border border-blue-50">
                       <p className="text-[10px] font-bold text-blue-400 uppercase mb-1">Address</p>
-                      <p className="mt-2 text-[15px] font-black text-green-600 bg-green-50 px-2 py-1 rounded inline-block">Master Match: {masterData.egat_address_th}</p>
+                      <p className="mt-2 text-[15px] font-black text-green-600 bg-green-50 px-2 py-1 rounded inline-block">{masterData.egat_address_th}</p>
                     </div>
                     <div className="bg-white/60 p-5 rounded-2xl border border-blue-50">
                       <p className="text-[10px] font-bold text-blue-400 uppercase mb-1">Tax ID</p>
@@ -419,20 +471,32 @@ const UploadReceipt = () => {
 
               {/* --- Section 3: Signature & Authentication --- */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="flex items-center gap-6 p-6 bg-gray-50/50 rounded-[32px] border border-gray-100">
-                  <div className="w-32 h-20 rounded-xl overflow-hidden bg-gray-900 border-2 border-white shadow-sm">
-                    <img src={debugImage} className="w-full h-full object-contain" style={{ transform: 'scale(2.5)', transformOrigin: '15% 100%' }} />
+                {/* 🖋️ ลายเซ็น: แสดงเฉพาะใบเสร็จปกติ (Type 1) */}
+                {receiptType === '1' && (
+                  <div className="flex items-center gap-6 p-6 bg-gray-50/50 rounded-[32px] border border-gray-100 animate-in fade-in">
+                    <div className="w-32 h-20 rounded-xl overflow-hidden bg-gray-900 border-2 border-white shadow-sm">
+                      <img src={debugImage} className="w-full h-full object-contain" style={{ transform: 'scale(2.5)', transformOrigin: '15% 100%' }} />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">การลงลายมือชื่อ</p>
+                      <p className={`text-sm font-black ${confirmedRegions.signature === 'correct' ? 'text-green-600' : 'text-red-600'}`}>
+                        {confirmedRegions.signature === 'correct' ? '✓ ตรวจพบลายเซ็น' : '⚠ ไม่พบลายเซ็น'}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">การลงลายมือชื่อ</p>
-                    <p className={`text-sm font-black ${confirmedRegions.signature === 'correct' ? 'text-green-600' : 'text-red-600'}`}>
-                      {confirmedRegions.signature === 'correct' ? '✓ ตรวจพบลายเซ็น' : '⚠ ไม่พบลายเซ็น'}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-6 p-6 bg-gray-50/50 rounded-[32px] border border-gray-100">
+                )}
+
+                {/* 📄 ต้นฉบับ: แสดงทั้งสองแบบ แต่ปรับพิกัดสำหรับ Type 2 */}
+                <div className={`flex items-center gap-6 p-6 bg-gray-50/50 rounded-[32px] border border-gray-100 ${receiptType === '2' ? 'md:col-span-2' : ''}`}>
                   <div className="w-32 h-20 rounded-xl overflow-hidden bg-gray-900 border-2 border-white shadow-sm">
-                    <img src={debugImage} className="w-full h-full object-contain" style={{ transform: 'scale(1.5)', transformOrigin: '80% 100%' }} />
+                    <img
+                      src={debugImage}
+                      className="w-full h-full object-contain"
+                      style={{
+                        transform: receiptType === '2' ? 'scale(8)' : 'scale(2)',
+                        transformOrigin: receiptType === '2' ? '50% 98%' : '80% 100%'
+                      }}
+                    />
                   </div>
                   <div>
                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">ประเภทต้นฉบับ</p>
@@ -444,25 +508,47 @@ const UploadReceipt = () => {
               </div>
             </div>
 
-            {/* --- Action Buttons --- */}
-            <div className="mt-12 flex flex-col md:flex-row gap-4">
+            {/* --- 🚀 Action Buttons Group (จัดใหม่ให้สวยงาม) --- */}
+            <div className="mt-16 bg-white/50 backdrop-blur-md p-6 md:p-8 rounded-[40px] border border-gray-100 shadow-sm flex flex-col md:flex-row items-center gap-4">
+
+              {/* 1. Re-Check: เน้นความคลีน */}
               <button
                 onClick={() => setCurrentStep(2)}
-                className="flex-1 py-5 bg-gray-100 text-gray-500 rounded-[24px] font-black hover:bg-gray-200 transition-all flex items-center justify-center gap-2 group"
+                className="w-full md:w-auto px-6 py-4 bg-white text-slate-500 rounded-2xl font-bold border border-slate-100 hover:bg-slate-50 transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm"
               >
-                <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" /> Re-Check Image
+                <ArrowLeft size={18} /> Re-Check
               </button>
+
+              {/* 2. Discard: สีแดงอ่อนดูนุ่มนวลแต่ชัดเจน */}
+              <button
+                onClick={() => setIsDeleteModalOpen(true)}
+                className="w-full md:w-auto px-6 py-4 bg-rose-50 text-rose-500 rounded-2xl font-bold hover:bg-rose-100 transition-all flex items-center justify-center gap-2 active:scale-95"
+              >
+                <Trash2 size={18} /> Discard
+              </button>
+
+              {/* Spacer: ดันปุ่ม Save ไปขวาสุดเฉพาะจอใหญ่ */}
+              <div className="hidden md:block flex-1"></div>
+
+              {/* 3. Confirm & Save: ปรับ Font และ Padding ใหม่ให้พอดีบรรทัดเดียว */}
               <button
                 onClick={handleSaveToDB}
-                className="flex-[2] py-5 bg-green-500 text-white rounded-[24px] font-black text-xl shadow-2xl shadow-green-200 hover:bg-green-600 transition-all active:scale-95 flex items-center justify-center gap-3 animate-pulse-slow"
+                className="w-full md:w-auto px-10 py-5 bg-emerald-500 text-white rounded-2xl font-black text-lg shadow-xl shadow-emerald-200/50 hover:bg-emerald-600 transition-all active:scale-95 flex items-center justify-center gap-3"
               >
-                <Save size={24} /> Confirm & Save Report
+                <Save size={22} className="shrink-0" />
+                <span className="whitespace-nowrap">Confirm & Save Report</span>
               </button>
             </div>
 
-            <button onClick={resetFlow} className="w-full mt-8 flex items-center justify-center gap-2 text-gray-400 font-bold text-[11px] hover:text-red-500 transition-colors uppercase tracking-tighter">
-              <Trash2 size={14} /> Discard & New Upload
-            </button>
+            {/* ✅ วาง Modal ไว้ล่างสุดตามเดิม (ไม่ต้องแก้ไข) */}
+            <ConfirmDeleteModal
+              isOpen={isDeleteModalOpen}
+              onClose={() => setIsDeleteModalOpen(false)}
+              onConfirm={executeDelete}
+              title="ยกเลิกการสแกน"
+              itemName={`ใบเสร็จเลขที่ ${editableFields.dbReceiptId}`}
+              message="หากคุณเริ่มใหม่ ข้อมูลที่สแกนไว้ในฐานข้อมูลจะถูกลบออกถาวร"
+            />
           </div>
         )}
       </div>
