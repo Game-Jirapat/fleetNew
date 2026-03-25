@@ -1,39 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Save, ArrowLeft, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
-import api from '../api/axios'; //
+import { Save, ArrowLeft, FileText, CheckCircle2, AlertCircle, Hash, Calendar, MapPin, CreditCard } from 'lucide-react';
+import api from '../api/axios';
 
 const ReceiptDetail = () => {
-    const { id } = useParams(); // รับ Receipt ID จาก URL /receipts/:id
+    const { id } = useParams();
     const navigate = useNavigate();
 
     // --- States ---
-    const [editableFields, setEditableFields] = useState(null);
+    const [editableFields, setEditableFields] = useState({
+        plateNo: '', transactionDate: '', egatAddress: '', egatTaxId: ''
+    });
     const [ogPicUrl, setOgPicUrl] = useState(null);
     const [framedPicUrl, setFramedPicUrl] = useState(null);
     const [masterData, setMasterData] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
 
-    // --- 1. Fetch ข้อมูลใบเสร็จ และ Master Data ---
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // ดึงข้อมูลใบเสร็จเก่า
                 const receiptRes = await api.get(`/receipts/${id}`);
                 const data = receiptRes.data;
-                console.log("Fetched Receipt Data:", data);
+
+                // ✅ ปรับ Date Format ให้เป็น ISO สำหรับ input[type="date"] หรือจัดการตามที่ DB ต้องการ
                 setEditableFields({
-                    dbReceiptId: data.id,
+                    dbReceiptId: data.receipt_id,
                     plateNo: data.license_plate_no || '',
-                    transactionDate: data.bill_date ? new Date(data.bill_date).toLocaleDateString('en-GB') : '',
-                    egatAddress: data.egat_address || '',
+                    transactionDate: data.bill_date ? new Date(data.bill_date).toISOString().split('T')[0] : '',
+                    egatAddress: data.egat_address || '', // สมมติว่ามี field นี้ใน DB
                     egatTaxId: data.egat_tax_id || ''
                 });
                 setOgPicUrl(data.og_pic);
                 setFramedPicUrl(data.framed_pic);
 
-                // ดึง Master Data มาเปรียบเทียบ
                 const masterRes = await api.get('/master');
                 setMasterData(Array.isArray(masterRes.data) ? masterRes.data[0] : masterRes.data);
             } catch (err) {
@@ -45,15 +45,15 @@ const ReceiptDetail = () => {
         fetchData();
     }, [id]);
 
-    // --- 2. Save Changes ---
     const handleUpdate = async () => {
         setIsSaving(true);
         try {
-            await api.put(`/receipts/${id}`, {
-                ...editableFields,
-                approval: 'Pending' // ส่งกลับไปรอตรวจสอบใหม่
+            // ✅ ใช้เส้น /data ที่เราแยกไว้ใน Backend
+            await api.put(`/receipts/${id}/data`, {
+                license_plate_no: editableFields.plateNo,
+                bill_date: editableFields.transactionDate
             });
-            alert('แก้ไขข้อมูลสำเร็จ! ✅');
+            alert('อัปเดตข้อมูลสำเร็จ! ✅');
             navigate('/admin/receipts');
         } catch (err) {
             alert('Error: ' + err.message);
@@ -62,105 +62,135 @@ const ReceiptDetail = () => {
         }
     };
 
-    if (isLoading) return <div className="p-10 text-center font-bold">กำลังโหลดข้อมูล...</div>;
+    if (isLoading) return <div className="p-10 text-center font-black text-blue-600 animate-pulse">กำลังโหลดข้อมูลใบเสร็จ...</div>;
 
     return (
-        <div className="p-6 bg-gray-50 min-h-screen">
-            <div className="max-w-5xl mx-auto">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-8">
-                    <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 font-bold">
-                        <ArrowLeft size={20} /> ย้อนกลับ
+        <div className="p-4 md:p-8 bg-gray-50 min-h-screen font-sans">
+            <div className="max-w-6xl mx-auto">
+                {/* --- Header Section --- */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => navigate(-1)}
+                            className="p-3 bg-white hover:bg-gray-100 rounded-2xl text-gray-400 shadow-sm transition-all active:scale-90"
+                        >
+                            <ArrowLeft size={24} />
+                        </button>
+                        <div>
+                            <h1 className="text-2xl md:text-3xl font-black text-gray-800">Edit Receipt</h1>
+                            <p className="text-gray-400 font-bold text-[10px] md:text-xs uppercase tracking-[0.2em] mt-1">
+                                จัดการและแก้ไขข้อมูลใบเสร็จ #{id}
+                            </p>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={handleUpdate}
+                        disabled={isSaving}
+                        className="w-full md:w-auto px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black shadow-xl shadow-emerald-100 transition-all active:scale-95 flex items-center justify-center gap-2"
+                    >
+                        <Save size={22} /> {isSaving ? 'Saving...' : 'Update & Save Data'}
                     </button>
-                    <h1 className="text-2xl font-black text-gray-800">แก้ไขข้อมูลใบเสร็จ #{id}</h1>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* ฝั่งซ้าย: ข้อมูลที่แก้ไขได้สลับกับ Master Data */}
-                    <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
-                        {/* 1. Plate No */}
-                        <div>
-                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">1. Plate No</label>
-                            <input
-                                className="w-full p-4 bg-gray-50 border-2 border-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-blue-500"
-                                value={editableFields.plateNo}
-                                onChange={(e) => setEditableFields({ ...editableFields, plateNo: e.target.value })}
-                            />
-                        </div>
+                    {/* --- Left Column: Form Fields (7 Columns) --- */}
+                    <div className="lg:col-span-7 space-y-6">
 
-                        {/* 2. Transaction Date */}
-                        <div>
-                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">2. Transaction Date</label>
-                            <input
-                                className="w-full p-4 bg-gray-50 border-2 border-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-blue-500"
-                                value={editableFields.transactionDate}
-                                onChange={(e) => setEditableFields({ ...editableFields, transactionDate: e.target.value })}
-                            />
-                        </div>
+                        <div className="bg-white p-6 md:p-8 rounded-[40px] shadow-sm border border-gray-100 space-y-8">
+                            <h2 className="text-sm font-black text-blue-500 uppercase tracking-widest flex items-center gap-2 mb-2">
+                                <FileText size={18} /> OCR Result Details
+                            </h2>
 
-                        {/* 3. EGAT Address (Comparison) */}
-                        <div className="p-5 bg-blue-50/50 rounded-3xl border border-blue-100 space-y-4">
-                            <div>
-                                <label className="block text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">3. EGAT Address (ปัจจุบัน)</label>
-                                <textarea
-                                    rows="2"
-                                    className="w-full p-3 bg-white border-2 border-blue-50 rounded-xl font-bold text-sm"
-                                    value={editableFields.egatAddress}
-                                    onChange={(e) => setEditableFields({ ...editableFields, egatAddress: e.target.value })}
+                            {/* 🚗 Plate No */}
+                            <div className="space-y-2">
+                                <label className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                                    <Hash size={14} /> 1. ทะเบียนรถ (License Plate)
+                                </label>
+                                <input
+                                    className="w-full p-5 bg-gray-50 border-2 border-transparent rounded-2xl outline-none font-black text-xl text-gray-700 focus:border-blue-500 focus:bg-white transition-all shadow-inner"
+                                    value={editableFields.plateNo}
+                                    onChange={(e) => setEditableFields({ ...editableFields, plateNo: e.target.value })}
                                 />
                             </div>
-                            <div className="pt-2 border-t border-blue-100">
-                                <label className="block text-[10px] font-black text-green-500 uppercase tracking-widest mb-1">🎯 Master Data Address</label>
-                                <p className="text-xs font-bold text-green-800">
-                                    {/[ก-ฮ]/.test(editableFields.egatAddress) ? masterData?.egat_address_th : masterData?.egat_address_eng}
+
+                            {/* 📅 Date */}
+                            <div className="space-y-2">
+                                <label className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                                    <Calendar size={14} /> 2. วันที่ในใบเสร็จ (Bill Date)
+                                </label>
+                                <input
+                                    type="date"
+                                    className="w-full p-5 bg-gray-50 border-2 border-transparent rounded-2xl outline-none font-black text-xl text-gray-700 focus:border-blue-500 focus:bg-white transition-all shadow-inner"
+                                    value={editableFields.transactionDate}
+                                    onChange={(e) => setEditableFields({ ...editableFields, transactionDate: e.target.value })}
+                                />
+                            </div>
+
+                            <hr className="border-gray-50" />
+
+                            {/* 🏛️ EGAT Address Comparison */}
+                            <div className="p-6 bg-blue-50/50 rounded-[32px] border border-blue-100 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <label className="flex items-center gap-2 text-[10px] font-black text-blue-400 uppercase tracking-widest">
+                                        <MapPin size={14} /> 3. EGAT Address
+                                    </label>
+                                    <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter">Verified</span>
+                                </div>
+                                <p className="text-sm font-black text-slate-600 leading-relaxed bg-white/60 p-4 rounded-xl border border-blue-50 shadow-sm">
+                                    {masterData?.egat_address_th}
                                 </p>
                             </div>
-                        </div>
 
-                        {/* 4. EGAT Tax ID (Comparison) */}
-                        <div className="p-5 bg-orange-50/50 rounded-3xl border border-orange-100 space-y-4">
-                            <div>
-                                <label className="block text-[10px] font-black text-orange-400 uppercase tracking-widest mb-1">4. EGAT Tax ID (ปัจจุบัน)</label>
-                                <input
-                                    className={`w-full p-3 bg-white border-2 rounded-xl font-black ${editableFields.egatTaxId !== '0994000244843' ? 'border-red-300 text-red-600' : 'border-orange-50'}`}
-                                    value={editableFields.egatTaxId}
-                                    onChange={(e) => setEditableFields({ ...editableFields, egatTaxId: e.target.value })}
-                                />
-                            </div>
-                            <div className="pt-2 border-t border-orange-100">
-                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">🎯 Master Tax ID</label>
-                                <p className="text-sm font-black text-gray-400">0994000244843</p>
+                            {/* 💳 Tax ID Comparison */}
+                            <div className="p-6 bg-emerald-50/50 rounded-[32px] border border-emerald-100 flex items-center justify-between gap-4">
+                                <div className="space-y-1">
+                                    <label className="flex items-center gap-2 text-[10px] font-black text-emerald-500 uppercase tracking-widest">
+                                        <CreditCard size={14} /> 4. EGAT Tax ID
+                                    </label>
+                                    <p className="text-lg font-black text-emerald-700 tracking-wider">
+                                        {masterData?.egat_tax_id}
+                                    </p>
+                                </div>
+                                <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-emerald-500">
+                                    <CheckCircle2 size={24} />
+                                </div>
                             </div>
                         </div>
-
-                        <button
-                            onClick={handleUpdate}
-                            disabled={isSaving}
-                            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black shadow-lg transition-all"
-                        >
-                            <Save className="inline mr-2" /> {isSaving ? 'Saving...' : 'Update Receipt Data'}
-                        </button>
                     </div>
 
-                    {/* ฝั่งขวา: รูปภาพใบเสร็จหลักฐาน */}
-                    <div className="space-y-6">
-                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-                            <h3 className="text-sm font-black text-gray-400 uppercase mb-4 tracking-widest flex items-center gap-2">
-                                <AlertCircle size={16} /> Evidence Images
+                    {/* --- Right Column: Evidence Images (5 Columns) --- */}
+                    <div className="lg:col-span-5 space-y-6">
+                        <div className="bg-white p-6 md:p-8 rounded-[40px] shadow-sm border border-gray-100">
+                            <h3 className="text-sm font-black text-gray-400 uppercase mb-6 tracking-widest flex items-center gap-2">
+                                <AlertCircle size={18} className="text-orange-400" /> Evidence Images
                             </h3>
-                            <div className="space-y-4">
-                                <div>
-                                    <p className="text-[10px] font-bold text-gray-400 mb-2 uppercase">Framed Image (รูปที่มีการตีกรอบ)</p>
-                                    <img src={framedPicUrl || ogPicUrl} className="w-full rounded-2xl border-2 border-gray-100 shadow-sm" alt="Framed" />
+                            <div className="space-y-8">
+                                <div className="group">
+                                    <p className="text-[10px] font-black text-gray-400 mb-3 uppercase tracking-wider ml-1">Framed Preview</p>
+                                    <div className="relative aspect-[4/3] rounded-3xl overflow-hidden border-4 border-white shadow-lg bg-gray-900 transition-all group-hover:shadow-xl group-hover:-translate-y-1">
+                                        <img
+                                            src={framedPicUrl || ogPicUrl}
+                                            className="w-full h-full object-contain opacity-90"
+                                            alt="Framed"
+                                        />
+                                    </div>
                                 </div>
-                                <div>
-                                    <p className="text-[10px] font-bold text-gray-400 mb-2 uppercase">Original Image (รูปต้นฉบับ)</p>
-                                    <img src={ogPicUrl} className="w-full rounded-2xl border-2 border-gray-100 opacity-70" alt="Original" />
+                                <div className="group">
+                                    <p className="text-[10px] font-black text-gray-400 mb-3 uppercase tracking-wider ml-1">Original Receipt</p>
+                                    <div className="relative aspect-[4/3] rounded-3xl overflow-hidden border-2 border-dashed border-gray-200 bg-gray-50 opacity-60 hover:opacity-100 transition-all">
+                                        <img
+                                            src={ogPicUrl}
+                                            className="w-full h-full object-contain p-2"
+                                            alt="Original"
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+
                 </div>
             </div>
         </div>

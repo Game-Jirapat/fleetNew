@@ -140,68 +140,95 @@ exports.getReceiptById = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-// [READ ONE] - ดึงข้อมูลใบเสร็จใบเดียวตาม ID
-exports.getReceiptById = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const receipt = await Receipts.findByPk(id, {
-      include: [{
-        model: Users,
-        as: 'users',
-        attributes: ['user_id', 'name', 'role']
-      }]
-    });
-
-    if (!receipt) {
-      return res.status(404).json({ error: "ไม่พบข้อมูลใบเสร็จนี้" });
-    }
-
-    res.status(200).json(receipt);
-  } catch (error) {
-    console.error("❌ Get Receipt Error:", error);
-    res.status(500).json({ error: error.message });
-  }
-};
 
 // [READ ALL] - ดึงรายการทั้งหมดพร้อมข้อมูล User
 exports.getAllReceipts = async (req, res) => {
   try {
-    const receipts = await Receipts.findAll({
+    // รับค่า page และ limit จาก query string (เช่น ?page=1&limit=10)
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    // ✅ ใช้ findAndCountAll เพื่อให้ได้ทั้งข้อมูลและจำนวนทั้งหมด
+    const { count, rows } = await Receipts.findAndCountAll({
       order: [['created_at', 'DESC']],
+      limit: limit,
+      offset: offset,
       include: [{
         model: Users,
         as: 'users',
         attributes: ['user_id', 'name', 'role']
       }]
     });
-    res.status(200).json(receipts);
+
+    res.status(200).json({
+      receipts: rows,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+      totalItems: count
+    });
   } catch (error) {
-    console.error("❌ Database Error Details:", error); // ดูใน Terminal ของ Node.js
-    res.status(500).json({ error: error.message }); // ส่ง Error จริงไปที่ Postman/Browser
+    res.status(500).json({ error: error.message });
   }
 };
 
-// [UPDATE] - แก้ไขสถานะ (Admin Approve/Reject)
-// [UPDATE] - แก้ไขข้อมูลและสถานะ
-exports.updateReceiptStatus = async (req, res) => {
+// [UPDATE 1] - สำหรับ Admin อัปเดตสถานะ (Approve/Reject) เท่านั้น
+exports.updateApprovalStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    // รับค่าจากแบบฟอร์มที่ส่งมาจาก Frontend
-    const { approval, license_plate_no, bill_date, egat_address, egat_tax_id } = req.body;
+    const { approval } = req.body;
 
     const receipt = await Receipts.findByPk(id);
-    if (!receipt) return res.status(404).json({ error: "Receipt not found" });
+    if (!receipt) return res.status(404).json({ error: "ไม่พบข้อมูลใบเสร็จ" });
 
-    // อัปเดตข้อมูลทุกฟิลด์ที่ส่งมา
+    await receipt.update({ approval }); // อัปเดตเฉพาะสถานะ
+
+    res.status(200).json({
+      message: `เปลี่ยนสถานะเป็น ${approval} สำเร็จ`,
+      data: receipt
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// [UPDATE 2] - สำหรับบันทึก/แก้ไขข้อมูลใบเสร็จ (ทะเบียนรถ และ วันที่)
+exports.updateReceiptData = async (req, res) => {
+  try {
+    const { id } = req.params;
+    // รับแค่ 2 ตัวแปรตามที่คุณกำหนด
+    const { license_plate_no, bill_date } = req.body;
+
+    const receipt = await Receipts.findByPk(id);
+    if (!receipt) return res.status(404).json({ error: "ไม่พบข้อมูลใบเสร็จ" });
+
+    let finalBillDate = receipt.bill_date; // ค่าเริ่มต้นเป็นค่าเดิมใน DB
+
+    if (bill_date) {
+      let dateObj = new Date(bill_date);
+
+      if (!isNaN(dateObj.getTime())) {
+        let year = dateObj.getFullYear();
+
+        // 🛡️ Logic ตรวจสอบปี: ถ้าเป็น พ.ศ. ( > 2400) ให้ลบ 543 เพื่อเป็น ค.ศ.
+        if (year > 2400) {
+          year = year - 543;
+          dateObj.setFullYear(year);
+        }
+        finalBillDate = dateObj;
+      }
+    }
+
+    // อัปเดตข้อมูล
     await receipt.update({
-      approval,
-      license_plate_no,
-      bill_date,
-      egat_address,
-      egat_tax_id
+      license_plate_no: license_plate_no || receipt.license_plate_no,
+      bill_date: finalBillDate
     });
 
-    res.status(200).json({ message: "อัปเดตข้อมูลสำเร็จ", data: receipt });
+    res.status(200).json({
+      message: "บันทึกข้อมูลสำเร็จ",
+      data: receipt
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

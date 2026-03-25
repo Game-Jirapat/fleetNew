@@ -1,58 +1,77 @@
 const express = require("express");
 const line = require("@line/bot-sdk");
 const router = express.Router();
-const { User } = require('../models');
+const { Users } = require('../models');
 const jwt = require('jsonwebtoken');
 
-// LINE Bot SDK Configuration
+// ✅ 1. ใช้ MessagingApiClient แทน Client เดิมที่ Deprecated
+const { messagingApi } = require('@line/bot-sdk');
+const { MessagingApiClient } = messagingApi;
+
 const config = {
     channelAccessToken: process.env.TOKEN,
     channelSecret: process.env.SECRETCODE,
 };
-const client = new line.Client(config);
 
-// Handle LINE webhook events
-// ส่วนหนึ่งของ handleEvent ใน lineWebHookRoutes.js
+// ✅ 2. สร้าง Client ด้วย Class ใหม่
+const client = new MessagingApiClient({
+    channelAccessToken: config.channelAccessToken
+});
+
 async function handleEvent(event) {
-    if (event.type !== 'message' || event.message.type !== 'text') return null;
-
-    const lineIdFromEvent = event.source.userId;
-
-    // ค้นหา/สร้าง User โดยใช้ line_id (ตาม Schema ใหม่)
-    let user = await User.findOne({ where: { line_id: lineIdFromEvent } });
-
-    if (!user) {
-        user = await User.create({
-            line_id: lineIdFromEvent,
-            name: `LINE User ${lineIdFromEvent.substring(0, 5)}`,
-            role: 'User' // ค่าเริ่มต้นตาม ENUM
-        });
+    if (event.type !== 'message' || event.message.type !== 'text') {
+        return null;
     }
 
-    // สร้าง Token โดยใช้ user_id (ตาม Diagram ใหม่)
-    const token = jwt.sign(
-        { user_id: user.user_id, role: user.role },
-        process.env.JWT_SECRET,
-        { expiresIn: '1h' }
-    );
+    const lineUserId = event.source.userId;
+    let responseMessageText;
 
-    const dashboardUrl = `${process.env.FRONTEND_URL}/magic-login?token=${token}`;
+    try {
+        // ✅ 3. ตรวจสอบชื่อ Field ใน Database (ใน Model คุณใช้ line_id หรือ lineUserId?)
+        // สมมติว่าใช้ line_id ตามมาตรฐานที่คุยกันก่อนหน้า
+        let user = await Users.findOne({ where: { line_user_id: lineUserId } });
 
-    const responseMessage = {
-        type: 'text',
-        text: `เข้าสู่ระบบ Dashboard ของคุณได้ที่นี่:\n${dashboardUrl}`
-    };
+        if (!user) {
+            user = await Users.create({
+                line_user_id: lineUserId,
+                name: `User-${lineUserId.substring(0, 6)}`, // ตั้งชื่อเบื้องต้น
+                role: 'User'
+            });
+            responseMessageText = `สวัสดีครับ! ระบบได้ลงทะเบียนคุณแล้ว คลิกเพื่อเข้าสู่ระบบ:`;
+        } else {
+            responseMessageText = `สวัสดีครับ! นี่คือลิงก์เข้าสู่ Dashboard ของคุณ:`;
+        }
 
-    return client.replyMessage(event.replyToken, responseMessage);
+        // ✅ 4. สร้าง Token โดยใช้ Secret จาก .env
+        const token = jwt.sign(
+            { user_id: user.user_id, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: '1h' }
+        );
+
+        // ✅ 5. ใช้ FRONTEND_URL จาก .env แทนการ Hardcode localhost
+        const dashboardUrl = `${process.env.FRONTEND_URL}/magic-login?token=${token}`;
+        const finalMessage = `${responseMessageText}\n\n${dashboardUrl}`;
+
+        // ✅ 6. ปรับการเรียก replyMessage ให้เป็นแบบ Object (v9 Style)
+        return await client.replyMessage({
+            replyToken: event.replyToken,
+            messages: [{ type: 'text', text: finalMessage }]
+        });
+
+    } catch (error) {
+        console.error("Error in handleEvent:", error);
+        return null;
+    }
 }
 
-// Webhook endpoint
+// ✅ 7. Middleware ตรวจสอบ Signature ยังคงใช้แบบเดิมได้
 router.post('/', line.middleware(config), (req, res) => {
     Promise
         .all(req.body.events.map(handleEvent))
         .then((result) => res.json(result))
         .catch((err) => {
-            console.error(err);
+            console.error("Webhook Error:", err);
             res.status(500).end();
         });
 });

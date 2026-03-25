@@ -1,32 +1,53 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
-import { CheckCircle, XCircle, Trash2, Search, Eye, Clock, Calendar, Hash, User } from 'lucide-react';
+import { CheckCircle2, XCircle, Trash2, Search, Eye, Clock, Calendar, Hash, User } from 'lucide-react';
 import ConfirmDeleteModal from '../assets/ConfirmDeleteModal';
 
 const ManageReceipts = () => {
     const [receipts, setReceipts] = useState([]);
+    const [pagination, setPagination] = useState({ current: 1, total: 1 });
     const [searchTerm, setSearchTerm] = useState("");
-    const [loading, setLoading] = useState(true);
     const [selectedItemId, setSelectedItemId] = useState(null); // ✅ เก็บ ID ตัวที่เลือกจะลบ
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [isActionModalOpen, setIsActionModalOpen] = useState(false);
+    const [selectedAction, setSelectedAction] = useState({ id: null, status: '' });
+    const [adminComment, setAdminComment] = useState('');
     const navigate = useNavigate();
 
-    useEffect(() => { fetchReceipts(); }, []);
+    useEffect(() => {
+        fetchReceipts(pagination.current);
+    }, [pagination.current]);
 
-    const fetchReceipts = async () => {
+    const presets = {
+        Approved: ["ข้อมูลถูกต้องครบถ้วน", "ตรวจสอบแล้วผ่านเกณฑ์", "เอกสารต้นฉบับชัดเจน"],
+        Rejected: ["รูปภาพไม่ชัดเจน", "ทะเบียนรถไม่ตรงกับใบเสร็จ", "ที่อยู่ กฟผ. ไม่ถูกต้อง", "ไม่พบลายเซ็น"]
+    };
+
+    const fetchReceipts = async (page = 1) => {
         try {
-            const response = await api.get('/receipts');
-            setReceipts(response.data);
-            setLoading(false);
-        } catch (error) { console.error(error); setLoading(false); }
+            const response = await api.get(`/receipts?page=${page}&limit=10`);
+            setReceipts(response.data.receipts); // เก็บเฉพาะ array ข้อมูล
+            setPagination({
+                current: response.data.currentPage,
+                total: response.data.totalPages
+            });
+        } catch (error) {
+            console.error("Fetch error:", error);
+        }
     };
 
     const handleStatusUpdate = async (id, status) => {
         try {
-            await api.put(`/receipts/${id}`, { approval: status });
+            await api.patch(`/receipts/${selectedAction.id}/status`, {
+                approval: selectedAction.status
+            });
+            setIsActionModalOpen(false);
+            setAdminComment('');
             fetchReceipts();
-        } catch (error) { alert("Failed to update status"); }
+        } catch (error) {
+            alert("บันทึกไม่สำเร็จ: " + error.message);
+        }
     };
 
     const handleDelete = async () => {
@@ -86,12 +107,18 @@ const ManageReceipts = () => {
                                         </div>
                                     </div>
                                     <div className="flex gap-3">
-                                        <button onClick={() => handleStatusUpdate(item.receipt_id, 'Approved')} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-black py-3.5 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 transition-all active:scale-95">
-                                            <CheckCircle size={18} /> Approve
-                                        </button>
-                                        <button onClick={() => handleStatusUpdate(item.receipt_id, 'Rejected')} className="px-4 bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-2xl transition-all">
-                                            <XCircle size={22} />
-                                        </button>
+                                        <button onClick={() => {
+                                            setSelectedAction({ id: item.receipt_id, status: 'Approved' });
+                                            setIsActionModalOpen(true);
+                                        }}
+                                            className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-black py-3.5 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 transition-all active:scale-95"
+                                        >Approve</button>
+                                        <button onClick={() => {
+                                            setSelectedAction({ id: item.receipt_id, status: 'Rejected' });
+                                            setIsActionModalOpen(true);
+                                        }}
+                                            className="px-4 bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-2xl transition-all"
+                                        ><XCircle size={22} /></button>
                                     </div>
                                 </div>
                             </div>
@@ -175,6 +202,28 @@ const ManageReceipts = () => {
                             </table>
                         </div>
                     </div>
+
+                    <div className="mt-8 flex items-center justify-between bg-white p-4 rounded-3xl shadow-sm border border-gray-100">
+                        <p className="text-xs font-black text-gray-400 uppercase tracking-widest ml-4">
+                            Page {pagination.current} of {pagination.total}
+                        </p>
+                        <div className="flex gap-2">
+                            <button
+                                disabled={pagination.current === 1}
+                                onClick={() => setPagination(prev => ({ ...prev, current: prev.current - 1 }))}
+                                className="px-6 py-2 bg-gray-50 text-gray-500 rounded-xl font-black hover:bg-gray-100 disabled:opacity-30 transition-all"
+                            >
+                                Previous
+                            </button>
+                            <button
+                                disabled={pagination.current === pagination.total}
+                                onClick={() => setPagination(prev => ({ ...prev, current: prev.current + 1 }))}
+                                className="px-6 py-2 bg-blue-600 text-white rounded-xl font-black shadow-lg shadow-blue-100 hover:bg-blue-700 disabled:opacity-30 transition-all"
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
                 </section>
             </div>
 
@@ -187,6 +236,66 @@ const ManageReceipts = () => {
                 itemName={`ใบเสร็จหมายเลข #${selectedItemId}`}
                 message="คุณต้องการลบข้อมูลใบเสร็จนี้ออกจากระบบถาวรใช่หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้"
             />
+            {isActionModalOpen && (
+                <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl border border-gray-100 overflow-hidden">
+                        {/* Header */}
+                        <div className={`p-8 text-white ${selectedAction.status === 'Approved' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
+                            <h3 className="text-2xl font-black flex items-center gap-3">
+                                {selectedAction.status === 'Approved' ? <CheckCircle2 size={32} /> : <XCircle size={32} />}
+                                Confirm {selectedAction.status}
+                            </h3>
+                            <p className="opacity-80 font-bold text-sm mt-1 uppercase tracking-widest">ยืนยันการทำรายการสำหรับ ID: #{selectedAction.id}</p>
+                        </div>
+
+                        <div className="p-8 space-y-6">
+                            {/* Comment Input */}
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Comment / Reason</label>
+                                <textarea
+                                    value={adminComment}
+                                    onChange={(e) => setAdminComment(e.target.value)}
+                                    placeholder="พิมพ์เหตุผลหรือเลือกจากด้านล่าง..."
+                                    className="w-full p-4 bg-gray-50 border-2 border-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-blue-500 focus:bg-white transition-all min-h-[100px]"
+                                />
+                            </div>
+
+                            {/* Presets */}
+                            <div className="space-y-3">
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Quick Presets</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {presets[selectedAction.status].map((text, idx) => (
+                                        <button
+                                            key={idx}
+                                            onClick={() => setAdminComment(text)}
+                                            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-xs font-black transition-all active:scale-95"
+                                        >
+                                            + {text}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex gap-4 pt-4">
+                                <button
+                                    onClick={() => setIsActionModalOpen(false)}
+                                    className="flex-1 py-4 bg-gray-100 text-gray-500 rounded-2xl font-black hover:bg-gray-200 transition-all"
+                                >
+                                    ยกเลิก
+                                </button>
+                                <button
+                                    onClick={handleStatusUpdate}
+                                    className={`flex-[2] py-4 text-white rounded-2xl font-black shadow-lg transition-all active:scale-95 ${selectedAction.status === 'Approved' ? 'bg-emerald-500 shadow-emerald-100' : 'bg-rose-500 shadow-rose-100'
+                                        }`}
+                                >
+                                    ยืนยัน
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
