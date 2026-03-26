@@ -11,6 +11,8 @@ router.post('/upload', authenticateToken, upload.single('image'), receiptControl
 // 2. [READ] ดึงข้อมูลใบเสร็จ
 router.get('/', authenticateToken, receiptController.getAllReceipts); // ทั้งหมด
 router.get("/:id", authenticateToken, receiptController.getReceiptById); // รายใบ
+// GET /api/receipts/user/1
+router.get('/user/:userId', authenticateToken, receiptController.getReceiptsByUserId);
 
 // 3. [UPDATE - DATA] บันทึกข้อมูลทะเบียนและวันที่ (สำหรับขั้นตอนยืนยัน/แก้ไข)
 // Path: /api/receipts/:id/data

@@ -23,7 +23,7 @@ const UploadReceipt = () => {
   const [debugImage, setDebugImage] = useState(null);
   const [receiptType, setReceiptType] = useState('1');
   const [parsedData, setParsedData] = useState(null);
-
+  const [isCropped, setIsCropped] = useState(false);
   // --- Cropper States ---
   const [showCropper, setShowCropper] = useState(false);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -65,6 +65,7 @@ const UploadReceipt = () => {
     setSelectedFile(croppedFile);
     setImagePreviewUrl(URL.createObjectURL(croppedBlob));
     setShowCropper(false);
+    setIsCropped(true);
   };
 
   const handleProcessOCR = async () => {
@@ -153,36 +154,35 @@ const UploadReceipt = () => {
 
         {/* --- STEP 1: Upload & Initial Crop --- */}
         {currentStep === 1 && (
-          <div className="bg-white p-6 md:p-10 rounded-[40px] shadow-2xl border border-gray-100 animate-in fade-in zoom-in duration-500 max-w-2xl mx-auto">
-            {/* --- Header --- */}
-            <div className="flex items-center gap-4 mb-8">
-              <div className="p-3 bg-blue-50 rounded-2xl text-blue-600 shadow-sm">
+          <div className="bg-white p-6 md:p-8 rounded-3xl shadow-xl border border-gray-100 animate-in fade-in zoom-in duration-500 max-w-xl mx-auto space-y-6">            {/* --- Header --- */}
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-blue-50 rounded-xl text-blue-600 shadow-sm flex-shrink-0">
                 <Upload size={28} />
               </div>
               <div>
-                <h2 className="text-2xl font-black text-gray-800 leading-none">Step 1</h2>
-                <p className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mt-1">อัปโหลดใบเสร็จเพื่อเริ่มสแกน</p>
+                <h2 className="text-xl font-black text-gray-800 leading-none">Step 1</h2>
+                <p className="text-gray-400 font-bold text-[9px] uppercase tracking-widest mt-1">อัปโหลดใบเสร็จเพื่อเริ่มสแกน</p>
               </div>
             </div>
 
             {/* --- Image Dropzone (Improved) --- */}
             <div
               onClick={() => fileInputRef.current.click()}
-              className="group relative aspect-square md:aspect-video border-2 border-dashed border-gray-200 rounded-[32px] flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all duration-500 overflow-hidden bg-gray-50 shadow-inner"
+              className="group relative aspect-[4/3] border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all duration-500 overflow-hidden bg-gray-50 shadow-inner"
             >
               {imagePreviewUrl ? (
                 <>
                   {/* ✅ รูปพื้นหลังแบบเบลอเพื่อลดความโล่ง */}
                   <img
                     src={imagePreviewUrl}
-                    className="absolute inset-0 w-full h-full object-cover blur-xl opacity-20 scale-110 transition-transform duration-700 group-hover:scale-125"
+                    className="absolute inset-0 w-full h-full object-cover blur-lg opacity-20 scale-110"
                     alt="Blur Background"
                   />
                   {/* ✅ รูปหลักที่แสดงผลแบบ Overflow Hidden */}
-                  <div className="relative w-full h-full p-4 md:p-8 flex items-center justify-center">
+                  <div className="relative w-full h-full p-2 flex items-center justify-center">
                     <img
                       src={imagePreviewUrl}
-                      className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl transition-transform duration-500 group-hover:scale-105"
+                      className="max-w-full max-h-full object-contain rounded-xl shadow-lg group-hover:scale-105 transition-transform"
                       alt="Preview"
                     />
                   </div>
@@ -190,9 +190,9 @@ const UploadReceipt = () => {
                   <div className="absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/5 transition-colors duration-500" />
                 </>
               ) : (
-                <div className="text-center space-y-4 animate-in fade-in duration-700">
-                  <div className="w-20 h-20 bg-white rounded-3xl shadow-lg flex items-center justify-center mx-auto text-blue-500 group-hover:scale-110 transition-transform duration-500">
-                    <Upload size={32} />
+                <div className="text-center space-y-3 animate-in fade-in duration-700">
+                  <div className="w-16 h-16 bg-white rounded-2xl shadow-md flex items-center justify-center mx-auto text-blue-500 group-hover:scale-110 transition-transform">
+                    <Upload size={28} />
                   </div>
                   <p className="text-gray-400 font-black text-sm uppercase tracking-tighter">คลิกเพื่อเลือกไฟล์รูปภาพ</p>
                 </div>
@@ -206,15 +206,20 @@ const UploadReceipt = () => {
               {imagePreviewUrl && (
                 <button
                   onClick={() => setShowCropper(true)}
-                  className="flex-1 py-4 bg-white text-gray-600 border-2 border-gray-100 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-gray-50 transition-all active:scale-95"
+                  className={`flex-1 py-4 border-2 rounded-2xl font-black flex items-center justify-center gap-2 transition-all active:scale-95 ${isCropped
+                    ? 'bg-emerald-50 border-emerald-100 text-emerald-600'
+                    : 'bg-white border-gray-100 text-gray-600 hover:bg-gray-50'
+                    }`}
                 >
                   <Scissors size={20} className="text-blue-500" /> Crop Image
                 </button>
               )}
               <button
-                disabled={!selectedFile || isProcessing}
+                disabled={!selectedFile || isProcessing || !isCropped}
                 onClick={handleProcessOCR}
-                className={`flex-[2] py-5 rounded-2xl font-black text-white shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95 ${isProcessing ? 'bg-gray-300' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'
+                className={`flex-[2] py-5 rounded-2xl font-black text-white shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95 ${(!selectedFile || isProcessing || !isCropped)
+                  ? 'bg-gray-300 cursor-not-allowed opacity-70 shadow-none'
+                  : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'
                   }`}
               >
                 {isProcessing ? (

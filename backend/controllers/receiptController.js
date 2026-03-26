@@ -172,6 +172,35 @@ exports.getAllReceipts = async (req, res) => {
   }
 };
 
+// [READ BY USER ID] - ดึงรายการใบเสร็จทั้งหมดของ User เฉพาะคน
+exports.getReceiptsByUserId = async (req, res) => {
+  try {
+    const { userId } = req.params; // รับ userId จาก URL parameter
+
+    // รองรับการแบ่งหน้า (Pagination) เหมือนหน้า Admin
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await Receipts.findAndCountAll({
+      where: { user_id: userId }, // ✅ กรองเฉพาะของ User คนนี้
+      order: [['bill_date', 'DESC']], // เรียงตามวันที่ในใบเสร็จจากใหม่ไปเก่า
+      limit: limit,
+      offset: offset
+    });
+
+    res.status(200).json({
+      receipts: rows,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+      totalItems: count
+    });
+  } catch (error) {
+    console.error("❌ Get User Receipts Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // [UPDATE 1] - สำหรับ Admin อัปเดตสถานะ (Approve/Reject) เท่านั้น
 exports.updateApprovalStatus = async (req, res) => {
   try {

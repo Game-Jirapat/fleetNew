@@ -26,10 +26,10 @@ const MagicLogin = () => {
 
                 if (response.data.success || response.status === 200) {
                     const authToken = response.data.token;
-                    
+
                     // เก็บ Token ลง LocalStorage
                     localStorage.setItem('token', authToken);
-                    
+
                     // ถอดรหัสข้อมูล User (ถ้ามี)
                     try {
                         const decoded = jwtDecode(authToken);
@@ -40,9 +40,9 @@ const MagicLogin = () => {
 
                     setStatus('success');
                     setMessage('เข้าสู่ระบบสำเร็จ! กำลังพาคุณไปยังหน้าหลัก...');
-                    
+
                     setTimeout(() => {
-                        navigate('/dashboard', { replace: true });
+                        navigate('/upload', { replace: true });
                     }, 1500);
                 }
             } catch (error) {
@@ -78,7 +78,7 @@ const MagicLogin = () => {
                         <div className="text-5xl">❌</div>
                         <h2 className="text-xl font-bold text-red-600">เกิดข้อผิดพลาด</h2>
                         <p className="text-gray-500">{message}</p>
-                        <button 
+                        <button
                             onClick={() => navigate('/login')}
                             className="mt-4 text-blue-600 font-medium underline"
                         >

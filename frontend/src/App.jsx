@@ -9,6 +9,7 @@ import UploadReceipt from './pages/UploadReceipt';
 import ManageUser from './pages/ManageUsersPage';
 import ManageReceipts from './pages/ManageReceipts';
 import ReceiptDetail from './pages/ReceiptDetail';
+import UserDetailPage from './pages/UserDetail';
 import Navbar from './assets/Navbar';
 
 /**
@@ -41,6 +42,14 @@ function App() {
               <ProtectedRoute>
                 <Navbar />
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/admin/users/:id"
+            element={
+              <ProtectedRoute>
+                <Navbar />
+                <UserDetailPage />
               </ProtectedRoute>
             }
           />

@@ -60,48 +60,32 @@ exports.login = async (req, res) => {
 
 // 3. Magic Login (แลก Token จาก LINE เป็น Session Token)
 exports.magicLogin = async (req, res) => {
-    const { token } = req.body;
-
-    if (!token) {
-        return res.status(400).json({ success: false, message: "Token is required." });
-    }
-
     try {
-        // 1. ตรวจสอบโทเคนที่ได้จาก LINE Link
+        const { token } = req.body; // Token จาก URL
+        if (!token) return res.status(400).json({ message: "ไม่พบโทเค็น" });
+
+        // 1. ตรวจสอบ Token ที่ส่งมาจาก LINE
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // 2. ค้นหาผู้ใช้ (ใช้ user_id ตาม Schema ใหม่)
-        const user = await Users.findByPk(decoded.id);
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'User not found.' });
-        }
+        // 2. ค้นหา User ในระบบ
+        const user = await Users.findByPk(decoded.user_id);
+        if (!user) return res.status(404).json({ message: "ไม่พบผู้ใช้งานในระบบ" });
 
-        // 3. สร้าง Session Token ใหม่ (7 วัน) 
-        // ใส่ข้อมูล user_id และ role ให้ตรงกับ Schema ใหม่
-        const sessionToken = jwt.sign(
-            { id: user.user_id, role: user.role, name: user.name },
+        // 3. สร้าง Auth Token ชุดใหม่สำหรับใช้ในระบบ (Session จริง)
+        const authToken = jwt.sign(
+            { user_id: user.user_id, name: user.name, role: user.role },
             process.env.JWT_SECRET,
-            { expiresIn: '7d' }
+            { expiresIn: '24h' }
         );
 
-        // 4. ส่งกลับไปให้ Frontend
         res.status(200).json({
             success: true,
-            message: "Magic login successful.",
-            token: sessionToken,
-            user: {
-                id: user.user_id,
-                role: user.role,
-                name: user.name
-            }
+            token: authToken, // ส่งกลับไปให้ Frontend เก็บลง LocalStorage
+            user: { user_id: user.user_id, name: user.name, role: user.role }
         });
-
     } catch (error) {
-        console.error('Magic link verification failed:', error.message);
-        res.status(401).json({
-            success: false,
-            message: 'ลิงก์หมดอายุหรือข้อมูลไม่ถูกต้อง กรุณาขอลิงก์ใหม่จาก LINE'
-        });
+        console.error("Magic Login Error:", error);
+        res.status(401).json({ message: "ลิงก์หมดอายุหรือไม่ถูกต้อง" });
     }
 };
 
