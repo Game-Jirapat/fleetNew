@@ -15,6 +15,7 @@ router.get("/:id", authenticateToken, receiptController.getReceiptById); // ร�
 router.get('/user/:userId', authenticateToken, receiptController.getReceiptsByUserId);
 
 // 3. [UPDATE - DATA] บันทึกข้อมูลทะเบียนและวันที่ (สำหรับขั้นตอนยืนยัน/แก้ไข)
+router.post('/notify-confirmed', receiptController.notifyConfirmedData);
 // Path: /api/receipts/:id/data
 router.put('/:id/data', authenticateToken, receiptController.updateReceiptData);
 

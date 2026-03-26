@@ -37,10 +37,11 @@ const ManageReceipts = () => {
         }
     };
 
-    const handleStatusUpdate = async (id, status) => {
+    const handleStatusUpdate = async (newStatus) => {
         try {
             await api.patch(`/receipts/${selectedAction.id}/status`, {
-                approval: selectedAction.status
+                approval: selectedAction.status,
+                comment: adminComment
             });
             setIsActionModalOpen(false);
             setAdminComment('');

@@ -4,6 +4,12 @@ const path = require("path");
 const { Receipts, Users } = require("../models");
 const axios = require("axios");
 const FormData = require("form-data");
+const line = require("@line/bot-sdk");
+const config = {
+  channelAccessToken: process.env.TOKEN,
+  channelSecret: process.env.SECRETCODE,
+};
+const lineClient = new line.Client(config);
 
 const PHP_API_URL = process.env.PHP_API_URL;
 
@@ -201,21 +207,91 @@ exports.getReceiptsByUserId = async (req, res) => {
   }
 };
 
+// [UPDATE] - อัปเดตข้อมูลใบเสร็จ (สำหรับ Admin และ User)
+exports.notifyConfirmedData = async (req, res) => {
+  try {
+    const { receiptId, confirmedRegions } = req.body;
+
+    // ดึงข้อมูลใบเสร็จและเจ้าของ
+    const receipt = await Receipts.findByPk(receiptId, {
+      include: [{ model: Users, as: 'users' }]
+    });
+
+    if (!receipt || !receipt.users?.line_user_id) {
+      return res.status(404).json({ error: "User or LINE ID not found" });
+    }
+
+    // ✅ วิเคราะห์สถานะจาก confirmedRegions
+    const isReceiptTypeOk = confirmedRegions.receiptTaxinvoice === "correct";
+    const isPlateOk = confirmedRegions.plateNo === "correct";
+    const isDateOk = confirmedRegions.transactionDate === "correct";
+    const isEgatDataOk = confirmedRegions.egatData === "correct";
+    const isSignatureOk = confirmedRegions.signature === "correct" || "";
+    const isOrignalOk = confirmedRegions.original === "correct";
+
+    let message = `📝 รายงานการอัปโหลดใบเสร็จ\n`;
+    if (!isReceiptTypeOk) message += `⚠️ ประเภทใบเสร็จไม่ถูกต้อง กรุณา...\n`;
+    if (!isEgatDataOk) message += `⚠️ ข้อมูล EGAT ไม่ถูกต้อง กรุณา...\n`;
+    if (!isSignatureOk) message += `⚠️ ตรวจไม่พบลายเซ็น กรุณา...\n`;
+    if (!isOrignalOk) message += `⚠️ ใบเสร็จไม่ใช่ต้นฉบับ กรุณา...\n`;
+    if (!isPlateOk || !isDateOk) {
+      message += `⚠️ หมายเหตุ: ระบบพบข้อมูลบางส่วนไม่ชัดเจน เจ้าหน้าที่จะตรวจสอบเพิ่มเติมครับ`;
+    } else {
+      message += `✨ ข้อมูลครบถ้วน ระบบกำลังดำเนินการในขั้นตอนถัดไป หากมีคำถามเพิ่มเติม เจ้าหน้าที่จะติดต่อกลับครับ`;
+    }
+
+    // ส่งข้อความผ่าน LINE SDK
+    await lineClient.pushMessage(receipt.users.line_user_id, {
+      type: 'text',
+      text: message
+    });
+
+    res.status(200).json({ message: "Notification sent successfully" });
+  } catch (error) {
+    console.error("Notify Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // [UPDATE 1] - สำหรับ Admin อัปเดตสถานะ (Approve/Reject) เท่านั้น
 exports.updateApprovalStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { approval } = req.body;
+    const { approval, comment } = req.body;
 
-    const receipt = await Receipts.findByPk(id);
+    const receipt = await Receipts.findByPk(id, {
+      include: [{ model: Users, as: 'users' }]
+    });
+
     if (!receipt) return res.status(404).json({ error: "ไม่พบข้อมูลใบเสร็จ" });
 
-    await receipt.update({ approval }); // อัปเดตเฉพาะสถานะ
+    await receipt.update({ approval });
 
-    res.status(200).json({
-      message: `เปลี่ยนสถานะเป็น ${approval} สำเร็จ`,
-      data: receipt
-    });
+    const user = receipt.users;
+    if (user && user.line_user_id) {
+      const statusThai = approval === 'Approved' ? '✅ อนุมัติแล้ว' : '❌ ไม่ผ่านการอนุมัติ';
+
+      let lineMessage = `📢 แจ้งเตือนผลการตรวจสอบใบเสร็จ\n\n`;
+      lineMessage += `🚗 ทะเบียน: ${receipt.license_plate_no}\n`;
+      lineMessage += `📊 สถานะ: ${statusThai}\n`;
+
+      if (comment && comment.trim() !== "") {
+        lineMessage += `💬 หมายเหตุ: ${comment}\n`;
+      }
+      lineMessage += `\n📅 วันที่: ${new Date().toLocaleDateString('th-TH')}`;
+      try {
+        await lineClient.pushMessage(user.line_user_id, {
+          type: 'text',
+          text: lineMessage
+        });
+      } catch (lineErr) {
+        console.error("LINE Push Error:", lineErr.message);
+      }
+    } else {
+      console.warn("⚠️ Warning: User has no LINE ID, cannot send notification.");
+    }
+
+    res.status(200).json({ message: "อัปเดตสถานะและส่งการแจ้งเตือนเรียบร้อยแล้ว" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

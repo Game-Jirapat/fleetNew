@@ -22,7 +22,6 @@ const UploadReceipt = () => {
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
   const [debugImage, setDebugImage] = useState(null);
   const [receiptType, setReceiptType] = useState('1');
-  const [parsedData, setParsedData] = useState(null);
   const [isCropped, setIsCropped] = useState(false);
   // --- Cropper States ---
   const [showCropper, setShowCropper] = useState(false);
@@ -87,7 +86,6 @@ const UploadReceipt = () => {
         plateNo: parsed_data.license_plate_no || '',
         transactionDate: parsed_data.bill_date || '',
       };
-      setParsedData(mappedData);
       setEditableFields(mappedData);
       setCurrentStep(2); // ✅ ย้ายไป Step 2 เมื่อ OCR เสร็จ
       setStatusMessage('วิเคราะห์สำเร็จ!');
@@ -104,6 +102,13 @@ const UploadReceipt = () => {
         license_plate_no: editableFields.plateNo,
         bill_date: editableFields.transactionDate
       });
+
+      await api.post(`/receipts/notify-confirmed`, {
+        receiptId: editableFields.dbReceiptId,
+        confirmedRegions: confirmedRegions,
+        editableFields: editableFields
+      });
+
       setStatusMessage('บันทึกสำเร็จ!');
       setTimeout(() => resetFlow(), 1500);
     } catch (err) { setIsError(true); setStatusMessage('บันทึกไม่สำเร็จ'); }
@@ -115,7 +120,6 @@ const UploadReceipt = () => {
     setSelectedFile(null);
     setImagePreviewUrl(null);
     setDebugImage(null);
-    setParsedData(null);
     setConfirmedRegions({}); // ล้างค่าที่ติ๊กไว้ด้วย
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -342,11 +346,8 @@ const UploadReceipt = () => {
                               <div className="mt-1 flex-shrink-0 w-5 h-5 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center font-black text-[10px]">
                                 !
                               </div>
-                              <p className="text-xs font-bold text-gray-500 leading-relaxed uppercase tracking-tighter italic">
-                                กรณีที่ข้อมูลไม่ถูกต้อง กรุณาแก้ไขให้ตรงกับข้อมูลในใบเสร็จ
-                                <span className="text-gray-400 block mt-1 font-medium not-italic">
-                                  แล้วกด <strong className="text-blue-600">"มี/ไม่มี"</strong> เพื่อยืนยันสถานะของข้อมูลในกรอบนั้นๆ
-                                </span>
+                              <p className="text-sm text-gray-600">
+                                กรุณาตรวจสอบข้อมูลในกรอบให้ถูกต้อง หากไม่มีข้อมูลหรือข้อมูลไม่ถูกต้อง กรุณาแก้ไขให้ตรงกับใบเสร็จจริงก่อนยืนยัน
                               </p>
                             </div>
                           </div>
@@ -370,7 +371,7 @@ const UploadReceipt = () => {
                           )}
                         </div>
 
-                        {/* ✅ ปุ่มเลือกพิกัด (เหมือนเดิม) */}
+                        {/* ปุ่มเลือกพิกัด */}
                         <div className="flex justify-center gap-4 border-t pt-6">
                           <button
                             onClick={() => setConfirmedRegions({ ...confirmedRegions, [currentRegion.id]: 'incorrect' })}
@@ -391,7 +392,19 @@ const UploadReceipt = () => {
                       <div className="flex-1 animate-in fade-in slide-in-from-right-4 text-center">
                         <p className="text-2xl font-black text-gray-400 uppercase tracking-widest mb-4">{currentRegion.label}</p>
                         <h3 className="text-xl font-bold text-gray-800 mb-6">{currentRegion.question}</h3>
-
+                        {currentRegion.id === 'original' && (
+                          <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-xl mb-6">
+                            <div className="flex items-start gap-3">
+                              <div className="mt-1 flex-shrink-0 w-5 h-5 bg-yellow-300 text-yellow-800 rounded-lg flex items-center justify-center font-black text-[10px]">
+                                !
+                              </div>
+                              <p className="text-sm text-gray-600">
+                                หากเป็นใบเสร็จยาวจะมีคนว่าต้นฉบับอยู่ที่ท้ายใบเสร็จ
+                                หากเป็นใบเสร็จแบบ A5 จะไม่มีอะไรเขียนอยู่ในกรอบ
+                              </p>
+                            </div>
+                          </div>
+                        )}
                         <div className="flex justify-center gap-6">
                           {/* ปุ่ม "ไม่มี / ไม่ใช่" (Incorrect) */}
                           <button
