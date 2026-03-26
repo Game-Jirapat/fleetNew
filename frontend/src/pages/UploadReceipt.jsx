@@ -41,7 +41,6 @@ const UploadReceipt = () => {
       try {
         const response = await api.get('/master');
         setMasterData(Array.isArray(response.data) ? response.data[0] : response.data);
-        console.log("Master data fetched:", response.data);
       } catch (error) { console.error("Error fetching master data:", error); }
     };
     fetchMasterData();
@@ -101,7 +100,6 @@ const UploadReceipt = () => {
   const handleSaveToDB = async () => {
     try {
       setStatusMessage('กำลังบันทึกข้อมูล...');
-      console.log("Saving to DB with data:", editableFields);
       await api.put(`/receipts/${editableFields.dbReceiptId}/data`, {
         license_plate_no: editableFields.plateNo,
         bill_date: editableFields.transactionDate
@@ -146,7 +144,7 @@ const UploadReceipt = () => {
                 {s}
               </div>
               <span className={`hidden sm:block text-[9px] md:text-[10px] font-black uppercase tracking-tighter ${currentStep >= s ? 'text-blue-600' : 'text-gray-400'}`}>
-                {s === 1 ? 'Upload' : s === 2 ? 'Review' : 'Verify'}
+                {s === 1 ? 'อัปโหลด' : s === 2 ? 'ตรวจสอบ' : 'ยืนยัน'}
               </span>
             </div>
           ))}
@@ -154,14 +152,15 @@ const UploadReceipt = () => {
 
         {/* --- STEP 1: Upload & Initial Crop --- */}
         {currentStep === 1 && (
-          <div className="bg-white p-6 md:p-8 rounded-3xl shadow-xl border border-gray-100 animate-in fade-in zoom-in duration-500 max-w-xl mx-auto space-y-6">            {/* --- Header --- */}
+          <div className="bg-white p-6 md:p-8 rounded-3xl shadow-xl border border-gray-100 animate-in fade-in zoom-in duration-500 max-w-xl mx-auto space-y-6">
+            {/* --- Header --- */}
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-blue-50 rounded-xl text-blue-600 shadow-sm flex-shrink-0">
                 <Upload size={28} />
               </div>
               <div>
-                <h2 className="text-xl font-black text-gray-800 leading-none">Step 1</h2>
-                <p className="text-gray-400 font-bold text-[9px] uppercase tracking-widest mt-1">อัปโหลดใบเสร็จเพื่อเริ่มสแกน</p>
+                <h2 className="text-xl font-black text-gray-800 leading-none">ขั้นตอนที่ 1</h2>
+                <p className="text-gray-400 font-bold text-l uppercase tracking-widest mt-1">อัปโหลดใบเสร็จเพื่อเริ่มสแกน</p>
               </div>
             </div>
 
@@ -211,7 +210,7 @@ const UploadReceipt = () => {
                     : 'bg-white border-gray-100 text-gray-600 hover:bg-gray-50'
                     }`}
                 >
-                  <Scissors size={20} className="text-blue-500" /> Crop Image
+                  <Scissors size={20} className="text-blue-500" /> {isCropped ? 'ภาพถูกตัดแล้ว' : 'ตัดขอบรูปภาพ'}
                 </button>
               )}
               <button
@@ -225,10 +224,10 @@ const UploadReceipt = () => {
                 {isProcessing ? (
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin" />
-                    Processing...
+                    กำลังประมวลผล...
                   </div>
                 ) : (
-                  <><Cpu size={22} /> Start OCR Process</>
+                  <><Cpu size={22} />เริ่มประมวลผล</>
                 )}
               </button>
             </div>
@@ -240,10 +239,10 @@ const UploadReceipt = () => {
           <div className="bg-white p-4 md:p-8 rounded-[30px] md:rounded-[40px] shadow-xl border border-gray-100 animate-in fade-in zoom-in duration-300 mx-auto">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-black flex items-center gap-2 text-gray-800">
-                <Scissors size={24} className="text-orange-500" /> Step 2: ตรวจพิกัดข้อมูล
+                <Scissors size={28} className="text-orange-500" /> ขั้นตอนที่ 2: ตรวจพิกัดข้อมูล
               </h2>
               <span className="text-[10px] bg-gray-100 px-3 py-1 rounded-full font-bold text-gray-400">
-                LAYOUT TYPE: {receiptType}
+                ใบเสร็จชนิดที่ : {receiptType}
               </span>
             </div>
 
@@ -265,26 +264,26 @@ const UploadReceipt = () => {
               const currentRegion = regions[activeRegionIndex];
 
               if (!currentRegion) {
-                if (activeRegionIndex > 0) setActiveRegionIndex(0); // ป้องกันค้างที่ Index สูงเกินไป
+                if (activeRegionIndex > 0) setActiveRegionIndex(0);
                 return <div className="p-20 text-center font-bold text-gray-400 animate-pulse">กำลังโหลดพิกัด...</div>;
               }
 
               return (
                 <div className="space-y-6 md:space-y-8">
                   {/* --- 1. Cropped Image Area --- */}
-                  <div className={`relative aspect-[4/5] md:aspect-video rounded-2xl md:rounded-3xl overflow-hidden border-4 bg-gray-900 shadow-2xl transition-all duration-500 ${currentRegion.color}`}>
+                  <div className={`relative aspect-[4/5] md:aspect-video rounded-2xl md:rounded-3xl overflow-hidden border-4 bg-gray-900 shadow-xl transition-all duration-500 ${currentRegion.color}`}>
                     <img
                       src={debugImage}
                       className="w-full h-full object-contain opacity-90 transition-all duration-700 ease-in-out"
                       alt={currentRegion.label}
                       style={{
-                        // ✅ เพิ่ม Scale ให้สูงขึ้นสำหรับใบเสร็จยาวเพื่อให้เห็นตัวอักษรชัด
+                        // เพิ่ม Scale ให้สูงขึ้นสำหรับใบเสร็จยาวเพื่อให้เห็นตัวอักษรชัด
                         transform: `scale(${receiptType === '2'
                           ? (window.innerWidth < 768 ? '3.5' : '5')
                           : (window.innerWidth < 768 ? '1.8' : '1.8')
                           })`,
                         transformOrigin: (() => {
-                          // --- 📂 CASE: ใบเสร็จแบบยาว (Long Slip / Type 2) ---
+                          // --- CASE: ใบเสร็จแบบยาว (Long Slip / Type 2) ---
                           if (receiptType === '2') {
                             switch (currentRegion.id) {
                               case 'receiptTaxinvoice': return '50% 60%';  //หัวข้อ TAX INVOICE
@@ -295,7 +294,7 @@ const UploadReceipt = () => {
                               default: return 'center';
                             }
                           }
-                          // --- 📂 CASE: ใบเสร็จทั่วไป (Standard / Type 1) ---
+                          // --- CASE: ใบเสร็จทั่วไป (Standard / Type 1) ---
                           else {
                             switch (currentRegion.id) {
                               case 'receiptTaxinvoice': return '90% 5%';
@@ -318,15 +317,41 @@ const UploadReceipt = () => {
                   {/* --- 2. Text Content & Confirmation Checkbox --- */}
                   <div className="bg-gray-50 p-4 md:p-6 rounded-[24px] md:rounded-[32px] border border-gray-100 shadow-inner">
                     {currentRegion.type === 'edit' ? (
-                      // 📝 CASE 1: สำหรับ ทะเบียนรถ และ วันที่ (แก้ไขได้)
+                      // CASE 1: สำหรับ ทะเบียนรถ และ วันที่ (แก้ไขได้)
                       <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-left-4">
                         <div>
-                          <p className="text-[11px] font-black text-blue-500 uppercase tracking-widest mb-3">
-                            ตรวจสอบและแก้ไขข้อมูล
-                          </p>
+                          <div className="bg-blue-50/50 border border-blue-100 p-5 rounded-[24px] shadow-sm">
+                            <p className="text-[10px] font-black text-blue-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
+                              {currentRegion.id === 'plateNo' ? 'ทะเบียนรถที่ระบบอ่านได้' : 'วันที่ที่ระบบอ่านได้'}
+                            </p>
 
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-2xl font-black text-gray-800 tracking-tight">
+                                {editableFields[currentRegion.id] || 'ไม่พบข้อมูล'}
+                              </span>
+                              {!editableFields[currentRegion.id] && (
+                                <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest animate-bounce">
+                                  Please verify!
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="bg-gray-50 p-5 rounded-[24px] border border-gray-100">
+                            <div className="flex gap-3">
+                              <div className="mt-1 flex-shrink-0 w-5 h-5 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center font-black text-[10px]">
+                                !
+                              </div>
+                              <p className="text-xs font-bold text-gray-500 leading-relaxed uppercase tracking-tighter italic">
+                                กรณีที่ข้อมูลไม่ถูกต้อง กรุณาแก้ไขให้ตรงกับข้อมูลในใบเสร็จ
+                                <span className="text-gray-400 block mt-1 font-medium not-italic">
+                                  แล้วกด <strong className="text-blue-600">"มี/ไม่มี"</strong> เพื่อยืนยันสถานะของข้อมูลในกรอบนั้นๆ
+                                </span>
+                              </p>
+                            </div>
+                          </div>
                           {currentRegion.id === 'transactionDate' ? (
-                            // ✅ เพิ่ม Date Picker สำหรับวันที่
+                            // Date Picker สำหรับวันที่
                             <div className="relative group">
                               <input
                                 type="date"
@@ -336,7 +361,7 @@ const UploadReceipt = () => {
                               />
                             </div>
                           ) : (
-                            // 🚗 Input ปกติสำหรับ ทะเบียนรถ
+                            // Input ปกติสำหรับ ทะเบียนรถ
                             <input
                               className="w-full p-5 bg-white border-2 border-blue-100 rounded-2xl font-black text-xl shadow-sm focus:border-blue-500 outline-none transition-all"
                               value={editableFields[currentRegion.id] || ''}
@@ -351,20 +376,20 @@ const UploadReceipt = () => {
                             onClick={() => setConfirmedRegions({ ...confirmedRegions, [currentRegion.id]: 'incorrect' })}
                             className={`flex-1 py-4 rounded-2xl font-black border-2 transition-all flex items-center justify-center gap-2 ${confirmedRegions[currentRegion.id] === 'incorrect' ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-gray-200 text-gray-400'}`}
                           >
-                            <XCircle size={20} /> พิกัดไม่ตรง
+                            <XCircle size={20} /> ไม่มี{currentRegion.id === 'plateNo' ? 'ทะเบียนรถในกรอบ' : 'วันที่ในกรอบ'}
                           </button>
                           <button
                             onClick={() => setConfirmedRegions({ ...confirmedRegions, [currentRegion.id]: 'correct' })}
                             className={`flex-1 py-4 rounded-2xl font-black border-2 transition-all flex items-center justify-center gap-2 ${confirmedRegions[currentRegion.id] === 'correct' ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-gray-200 text-gray-400'}`}
                           >
-                            <CheckCircle2 size={20} /> พิกัดถูกต้อง
+                            <CheckCircle2 size={20} /> มี{currentRegion.id === 'plateNo' ? 'ทะเบียนรถในกรอบ' : 'วันที่ในกรอบ'}
                           </button>
                         </div>
                       </div>
                     ) : (
                       // ❓ CASE 2: สำหรับกรณีตอบคำถาม มี/ไม่มี (Yes/No)
                       <div className="flex-1 animate-in fade-in slide-in-from-right-4 text-center">
-                        <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-4">{currentRegion.label}</p>
+                        <p className="text-2xl font-black text-gray-400 uppercase tracking-widest mb-4">{currentRegion.label}</p>
                         <h3 className="text-xl font-bold text-gray-800 mb-6">{currentRegion.question}</h3>
 
                         <div className="flex justify-center gap-6">
@@ -376,7 +401,7 @@ const UploadReceipt = () => {
                               : 'bg-white border-gray-200 text-gray-400 hover:border-red-200'
                               }`}
                           >
-                            <XCircle size={20} /> ไม่มี / ไม่ใช่
+                            <XCircle size={20} /> {currentRegion.id === 'receiptTaxinvoice' ? 'ไม่มี' : currentRegion.id === 'egatData' ? 'ไม่มีข้อมูล กฟผ.' : currentRegion.id === 'signature' ? 'ไม่มีลายเซ็น' : 'ไม่ใช่ต้นฉบับ'}
                           </button>
 
                           {/* ปุ่ม "มี / ใช่" (Correct) */}
@@ -387,7 +412,7 @@ const UploadReceipt = () => {
                               : 'bg-white border-gray-200 text-gray-400 hover:border-green-200'
                               }`}
                           >
-                            <CheckCircle2 size={20} /> มี / ใช่
+                            <CheckCircle2 size={20} /> {currentRegion.id === 'receiptTaxinvoice' ? 'มี' : currentRegion.id === 'egatData' ? 'มีข้อมูล กฟผ.' : currentRegion.id === 'signature' ? 'มีลายเซ็น' : 'ใช่ต้นฉบับ'}
                           </button>
                         </div>
                       </div>
@@ -407,7 +432,7 @@ const UploadReceipt = () => {
                     {/* Check Logic: ต้องมีการเลือกสถานะก่อนถึงจะกดไปต่อได้ */}
                     {activeRegionIndex < regions.length - 1 ? (
                       <button
-                        disabled={!confirmedRegions[currentRegion.id]} // ✅ ล็อกปุ่มถ้ายังไม่ติ๊ก
+                        disabled={!confirmedRegions[currentRegion.id]}
                         onClick={() => setActiveRegionIndex(activeRegionIndex + 1)}
                         className={`p-4 rounded-2xl font-bold transition-all shadow-lg ${!confirmedRegions[currentRegion.id]
                           ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
@@ -418,14 +443,14 @@ const UploadReceipt = () => {
                       </button>
                     ) : (
                       <button
-                        disabled={!confirmedRegions[currentRegion.id]} // ✅ ล็อกปุ่มสุดท้ายถ้ายังไม่ติ๊ก
+                        disabled={!confirmedRegions[currentRegion.id]}
                         onClick={() => setCurrentStep(3)}
                         className={`px-8 py-4 rounded-2xl font-black shadow-xl transition-all flex items-center gap-2 ${!confirmedRegions[currentRegion.id]
                           ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
                           : 'bg-green-500 text-white hover:bg-green-600 animate-bounce-subtle'
                           }`}
                       >
-                        Go to Final Step <FileText size={20} />
+                        ไปที่ขั้นตอนถัดไป <FileText size={20} />
                       </button>
                     )}
                   </div>
