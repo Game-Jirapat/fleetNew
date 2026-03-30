@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import Cropper from 'react-easy-crop';
-import { Upload, Scissors, Cpu, Save, X, CheckCircle2, FileText, ArrowLeft, ArrowRight, Trash2, XCircle, Calendar } from 'lucide-react';
+import { Upload, Scissors, Cpu, Save, X, CheckCircle2, ShieldCheck, ArrowLeft, ArrowRight, Trash2, XCircle, Calendar } from 'lucide-react';
 import api from '../api/axios';
 import getCroppedImg from '../utils/cropImage';
 import ConfirmDeleteModal from '../assets/ConfirmDeleteModal'
@@ -103,11 +103,11 @@ const UploadReceipt = () => {
         bill_date: editableFields.transactionDate
       });
 
-      await api.post(`/receipts/notify-confirmed`, {
+      /*await api.post(`/receipts/notify-confirmed`, {
         receiptId: editableFields.dbReceiptId,
         confirmedRegions: confirmedRegions,
         editableFields: editableFields
-      });
+      });*/
 
       setStatusMessage('บันทึกสำเร็จ!');
       setTimeout(() => resetFlow(), 1500);
@@ -120,7 +120,7 @@ const UploadReceipt = () => {
     setSelectedFile(null);
     setImagePreviewUrl(null);
     setDebugImage(null);
-    setConfirmedRegions({}); // ล้างค่าที่ติ๊กไว้ด้วย
+    setConfirmedRegions({});
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -141,14 +141,14 @@ const UploadReceipt = () => {
       <div className="max-w-4xl mx-auto">
 
         {/* Step Indicator */}
-        <div className="mb-6 md:mb-10 flex items-center justify-between px-2 max-w-sm mx-auto">
-          {[1, 2, 3].map((s) => (
+        <div className="mb-6 md:mb-10 flex items-center justify-between px-2 max-w-xs mx-auto">
+          {[1, 2].map((s) => (
             <div key={s} className="flex flex-col items-center gap-1">
               <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-bold text-sm md:text-base ${currentStep >= s ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-gray-200 text-gray-400'}`}>
                 {s}
               </div>
               <span className={`hidden sm:block text-[9px] md:text-[10px] font-black uppercase tracking-tighter ${currentStep >= s ? 'text-blue-600' : 'text-gray-400'}`}>
-                {s === 1 ? 'อัปโหลด' : s === 2 ? 'ตรวจสอบ' : 'ยืนยัน'}
+                {s === 1 ? 'อัปโหลด' : 'ตรวจสอบและยืนยัน'}
               </span>
             </div>
           ))}
@@ -246,7 +246,7 @@ const UploadReceipt = () => {
                 <Scissors size={28} className="text-orange-500" /> ขั้นตอนที่ 2: ตรวจพิกัดข้อมูล
               </h2>
               <span className="text-[10px] bg-gray-100 px-3 py-1 rounded-full font-bold text-gray-400">
-                ใบเสร็จชนิดที่ : {receiptType}
+                ใบเสร็จชนิด: {receiptType}
               </span>
             </div>
 
@@ -321,54 +321,108 @@ const UploadReceipt = () => {
                   {/* --- 2. Text Content & Confirmation Checkbox --- */}
                   <div className="bg-gray-50 p-4 md:p-6 rounded-[24px] md:rounded-[32px] border border-gray-100 shadow-inner">
                     {currentRegion.type === 'edit' ? (
+
                       // CASE 1: สำหรับ ทะเบียนรถ และ วันที่ (แก้ไขได้)
                       <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-left-4">
-                        <div>
-                          <div className="bg-blue-50/50 border border-blue-100 p-5 rounded-[24px] shadow-sm">
-                            <p className="text-[10px] font-black text-blue-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
-                              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
-                              {currentRegion.id === 'plateNo' ? 'ทะเบียนรถที่ระบบอ่านได้' : 'วันที่ที่ระบบอ่านได้'}
-                            </p>
+                        <div className="space-y-5 animate-in fade-in duration-500">
 
-                            <div className="flex items-baseline gap-2">
-                              <span className="text-2xl font-black text-gray-800 tracking-tight">
-                                {editableFields[currentRegion.id] || 'ไม่พบข้อมูล'}
-                              </span>
+                          {/* --- Consolidated Verify Card --- */}
+                          <div className={`p-6 rounded-[32px] border-2 shadow-inner transition-all duration-300 ${!editableFields[currentRegion.id]
+                            ? 'bg-rose-50/50 border-rose-200' // 🔴 ข้อมูลขาดหาย
+                            : 'bg-white border-blue-100 shadow-xl shadow-gray-200/40' // 🔵 ข้อมูลครบ
+                            }`}>
+
+                            {/* Header with Title & Missing Badge */}
+                            <div className="flex items-center justify-between mb-5">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${!editableFields[currentRegion.id] ? 'bg-rose-500 animate-ping' : 'bg-blue-500'}`} />
+                                <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${!editableFields[currentRegion.id] ? 'text-rose-500' : 'text-blue-500'}`}>
+                                  {currentRegion.id === 'plateNo' ? 'ตรวจสอบทะเบียนรถ' : 'ตรวจสอบวันที่ใบเสร็จ'}
+                                </p>
+                              </div>
+
                               {!editableFields[currentRegion.id] && (
-                                <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest animate-bounce">
-                                  Please verify!
+                                <span className="bg-rose-600 text-white text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-tighter animate-bounce">
+                                  ข้อมูลขาดหาย!
                                 </span>
                               )}
                             </div>
-                          </div>
-                          <div className="bg-gray-50 p-5 rounded-[24px] border border-gray-100">
-                            <div className="flex gap-3">
-                              <div className="mt-1 flex-shrink-0 w-5 h-5 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center font-black text-[10px]">
-                                !
-                              </div>
-                              <p className="text-sm text-gray-600">
-                                กรุณาตรวจสอบข้อมูลในกรอบให้ถูกต้อง หากไม่มีข้อมูลหรือข้อมูลไม่ถูกต้อง กรุณาแก้ไขให้ตรงกับใบเสร็จจริงก่อนยืนยัน
-                              </p>
+
+                            {/* Integrated Display & Input Group */}
+                            <div className="space-y-4">
+                              {currentRegion.id === 'transactionDate' ? (
+                                < div className="flex flex-col sm:flex-row gap-3 items-stretch">
+
+                                  {/* ส่วน Input วันที่ (เต็มความกว้างในมือถือ) */}
+                                  <div className="relative group flex-1">
+                                    <input
+                                      type="date"
+                                      id="hiddenDatePicker"
+                                      value={editableFields[currentRegion.id] || ''}
+                                      onChange={e => setEditableFields({ ...editableFields, [currentRegion.id]: e.target.value })}
+                                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                    />
+
+                                    <div className={`w-full p-4 sm:p-5 bg-gray-50/50 rounded-2xl border-2 transition-all flex items-center justify-between ${!editableFields[currentRegion.id] ? 'border-rose-200' : 'border-transparent group-hover:border-blue-400'
+                                      }`}>
+                                      <span className="font-black text-xl sm:text-2xl text-gray-800">
+                                        {(() => {
+                                          const dateValue = editableFields[currentRegion.id];
+                                          if (!dateValue) return 'เลือกวันที่...';
+
+                                          // ตรวจสอบว่า String สามารถแปลงเป็น Date ได้จริงหรือไม่
+                                          const d = new Date(dateValue);
+                                          if (isNaN(d.getTime())) {
+                                            return <span className="text-rose-500">รูปแบบวันที่ผิดพลาด</span>;
+                                          }
+
+                                          // แสดงผลเป็น วัน/เดือน/ปี แบบไทย
+                                          return d.toLocaleDateString('th-TH', {
+                                            day: '2-digit',
+                                            month: '2-digit',
+                                            year: 'numeric',
+                                          });
+                                        })()}
+                                      </span>
+                                      <Calendar size={20} className="text-blue-500 flex-shrink-0" />
+                                    </div>
+                                  </div>
+
+                                  {/* ✅ ปุ่ม Today (ปรับขนาดให้พอดีกับมือถือ) */}
+                                  <button
+                                    onClick={() => {
+                                      const today = new Date().toISOString().split('T')[0];
+                                      setEditableFields({ ...editableFields, [currentRegion.id]: today });
+                                    }}
+                                    className="h-[60px] sm:h-auto px-6 bg-blue-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 active:scale-95"
+                                  >
+                                    วันนี้
+                                  </button>
+                                </div>
+                              ) : (
+                                // ✅ 2. แบบข้อความ (Plate No) - แสดงค่า OCR พร้อม Input
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <input
+                                    type="text"
+                                    value={editableFields[currentRegion.id] || ''}
+                                    placeholder="กรุณาระบุข้อมูลที่ถูกต้อง..."
+                                    onChange={e => setEditableFields({ ...editableFields, [currentRegion.id]: e.target.value })}
+                                    className="w-full p-4 bg-white border-2 border-blue-100 focus:border-blue-500 rounded-2xl font-black text-xl text-gray-800 outline-none transition-all placeholder:text-gray-300 shadow-sm"
+                                  />
+                                </div>
+                              )}
                             </div>
                           </div>
-                          {currentRegion.id === 'transactionDate' ? (
-                            // Date Picker สำหรับวันที่
-                            <div className="relative group">
-                              <input
-                                type="date"
-                                className="w-full p-5 bg-white border-2 border-blue-100 rounded-2xl font-black text-xl shadow-sm focus:border-blue-500 outline-none transition-all appearance-none cursor-pointer"
-                                value={editableFields[currentRegion.id] || ''}
-                                onChange={e => setEditableFields({ ...editableFields, [currentRegion.id]: e.target.value })}
-                              />
-                            </div>
-                          ) : (
-                            // Input ปกติสำหรับ ทะเบียนรถ
-                            <input
-                              className="w-full p-5 bg-white border-2 border-blue-100 rounded-2xl font-black text-xl shadow-sm focus:border-blue-500 outline-none transition-all"
-                              value={editableFields[currentRegion.id] || ''}
-                              onChange={e => setEditableFields({ ...editableFields, [currentRegion.id]: e.target.value })}
-                            />
-                          )}
+
+                          {/* --- Floating Hint Box --- */}
+                          <div className="flex items-center gap-3 px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-gray-500">
+                            <div className="flex-shrink-0 w-6 h-6 bg-white rounded-lg shadow-sm flex items-center justify-center font-black text-xs text-amber-500">!</div>
+                            <p className="text-[11px] font-bold tracking-tight leading-tight">
+                              {editableFields[currentRegion.id]
+                                ? "ตรวจสอบความถูกต้องอีกครั้ง หากไม่ตรงกับใบเสร็จ กรุณาพิมพ์แก้ไขในช่องด้านบน"
+                                : "ระบบตรวจไม่พบข้อมูลในกรอบนี้ โปรดระบุข้อมูลที่ถูกต้องตามใบเสร็จจริง"}
+                            </p>
+                          </div>
                         </div>
 
                         {/* ปุ่มเลือกพิกัด */}
@@ -388,10 +442,50 @@ const UploadReceipt = () => {
                         </div>
                       </div>
                     ) : (
-                      // ❓ CASE 2: สำหรับกรณีตอบคำถาม มี/ไม่มี (Yes/No)
+                      // CASE 2: สำหรับกรณีตอบคำถาม มี/ไม่มี (Yes/No)
                       <div className="flex-1 animate-in fade-in slide-in-from-right-4 text-center">
                         <p className="text-2xl font-black text-gray-400 uppercase tracking-widest mb-4">{currentRegion.label}</p>
                         <h3 className="text-xl font-bold text-gray-800 mb-6">{currentRegion.question}</h3>
+                        {currentRegion.id === 'egatData' && masterData && (
+                          <div className="mb-8 space-y-3 max-w-md mx-auto animate-in zoom-in duration-500">
+                            <div className="p-5 bg-blue-50 border-2 border-blue-100 rounded-[24px] text-left shadow-sm">
+                              <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                <ShieldCheck size={14} /> เปรียบเทียบข้อมูลกับฐานข้อมูล กฟผ.
+                              </p>
+                              <div className="space-y-3">
+                                <div className="pt-2">
+                                  {(() => {
+                                    switch (receiptType) {
+                                      case '1': // ✅ ใบเสร็จ ปตท. (ภาษาไทย)
+                                        return (
+                                          <div className="animate-in fade-in duration-300">
+                                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">ที่อยู่ กฟผ. (TH)</p>
+                                            <p className="text-sm font-black text-gray-700 leading-tight">{masterData.egat_address_th}</p>
+                                          </div>
+                                        );
+                                      case '2': // ✅ ใบเสร็จ บางจาก (ภาษาอังกฤษ)
+                                        return (
+                                          <div className="animate-in fade-in duration-300">
+                                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">EGAT Address (EN)</p>
+                                            <p className="text-sm font-black text-gray-700 leading-tight italic">{masterData.egat_address_eng}</p>
+                                          </div>
+                                        );
+                                      default:
+                                        return null;
+                                    }
+                                  })()}
+                                </div>
+                                <div className="pt-2 border-t border-blue-100">
+                                  <p className="text-[9px] font-bold text-gray-400 uppercase">เลขประจำตัวผู้เสียภาษี</p>
+                                  <p className="text-lg font-black text-blue-600">{masterData.egat_tax_id}</p>
+                                </div>
+                              </div>
+                            </div>
+                            <p className="text-[11px] font-bold text-amber-500 bg-amber-50 py-2 rounded-xl border border-amber-100 uppercase tracking-tighter">
+                              ⚠️ กรุณาเทียบข้อมูลด้านบนกับรูปภาพในกรอบสีแดง
+                            </p>
+                          </div>
+                        )}
                         {currentRegion.id === 'original' && (
                           <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-xl mb-6">
                             <div className="flex items-start gap-3">
@@ -414,7 +508,7 @@ const UploadReceipt = () => {
                               : 'bg-white border-gray-200 text-gray-400 hover:border-red-200'
                               }`}
                           >
-                            <XCircle size={20} /> {currentRegion.id === 'receiptTaxinvoice' ? 'ไม่มี' : currentRegion.id === 'egatData' ? 'ไม่มีข้อมูล กฟผ.' : currentRegion.id === 'signature' ? 'ไม่มีลายเซ็น' : 'ไม่ใช่ต้นฉบับ'}
+                            <XCircle size={20} /> {currentRegion.id === 'receiptTaxinvoice' ? 'ไม่ใช่' : currentRegion.id === 'egatData' ? 'ไม่มีข้อมูล กฟผ.' : currentRegion.id === 'signature' ? 'ไม่มีลายเซ็น' : 'ไม่ใช่ต้นฉบับ'}
                           </button>
 
                           {/* ปุ่ม "มี / ใช่" (Correct) */}
@@ -425,7 +519,7 @@ const UploadReceipt = () => {
                               : 'bg-white border-gray-200 text-gray-400 hover:border-green-200'
                               }`}
                           >
-                            <CheckCircle2 size={20} /> {currentRegion.id === 'receiptTaxinvoice' ? 'มี' : currentRegion.id === 'egatData' ? 'มีข้อมูล กฟผ.' : currentRegion.id === 'signature' ? 'มีลายเซ็น' : 'ใช่ต้นฉบับ'}
+                            <CheckCircle2 size={20} /> {currentRegion.id === 'receiptTaxinvoice' ? 'ใช่' : currentRegion.id === 'egatData' ? 'มีข้อมูล กฟผ.' : currentRegion.id === 'signature' ? 'มีลายเซ็น' : 'ใช่ต้นฉบับ'}
                           </button>
                         </div>
                       </div>
@@ -433,248 +527,71 @@ const UploadReceipt = () => {
                   </div>
 
                   {/* --- 3. Navigation (Prev / Next) --- */}
-                  <div className="flex items-center justify-between pt-4">
-                    <button
-                      disabled={activeRegionIndex === 0}
-                      onClick={() => setActiveRegionIndex(activeRegionIndex - 1)}
-                      className="p-4 bg-gray-100 text-gray-700 rounded-2xl font-bold disabled:opacity-20 hover:bg-gray-200 transition-all"
-                    >
-                      <ArrowLeft size={24} />
-                    </button>
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-6 border-t border-gray-100">
 
-                    {/* Check Logic: ต้องมีการเลือกสถานะก่อนถึงจะกดไปต่อได้ */}
-                    {activeRegionIndex < regions.length - 1 ? (
+                    <div className="flex items-center gap-3 w-full md:w-auto">
                       <button
-                        disabled={!confirmedRegions[currentRegion.id]}
-                        onClick={() => setActiveRegionIndex(activeRegionIndex + 1)}
-                        className={`p-4 rounded-2xl font-bold transition-all shadow-lg ${!confirmedRegions[currentRegion.id]
-                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
-                          : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-90'
-                          }`}
+                        disabled={activeRegionIndex === 0}
+                        onClick={() => setActiveRegionIndex(activeRegionIndex - 1)}
+                        className="p-4 bg-gray-100 text-gray-700 rounded-2xl font-bold disabled:opacity-20 hover:bg-gray-200 transition-all active:scale-95"
                       >
-                        <ArrowRight size={24} />
+                        <ArrowLeft size={24} />
                       </button>
-                    ) : (
-                      <button
-                        disabled={!confirmedRegions[currentRegion.id]}
-                        onClick={() => setCurrentStep(3)}
-                        className={`px-8 py-4 rounded-2xl font-black shadow-xl transition-all flex items-center gap-2 ${!confirmedRegions[currentRegion.id]
-                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
-                          : 'bg-green-500 text-white hover:bg-green-600 animate-bounce-subtle'
-                          }`}
-                      >
-                        ไปที่ขั้นตอนถัดไป <FileText size={20} />
-                      </button>
-                    )}
+
+                      {/* เพิ่มปุ่มยกเลิกรายการในพิกัดสุดท้าย (ต้นฉบับ) */}
+                      {currentRegion.id === 'original' && (
+                        <button
+                          onClick={() => setIsDeleteModalOpen(true)}
+                          className="px-6 py-4 bg-rose-50 text-rose-500 rounded-2xl font-bold hover:bg-rose-100 transition-all flex items-center justify-center gap-2 active:scale-95 border border-rose-100"
+                        >
+                          <Trash2 size={20} /> <span className="hidden sm:inline text-sm">ยกเลิกรายการ</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="w-full md:w-auto">
+                      {activeRegionIndex < regions.length - 1 ? (
+                        <button
+                          disabled={!confirmedRegions[currentRegion.id]}
+                          onClick={() => setActiveRegionIndex(activeRegionIndex + 1)}
+                          className={`w-full md:w-auto px-10 py-4 rounded-2xl font-black transition-all shadow-lg flex items-center justify-center gap-2 ${!confirmedRegions[currentRegion.id]
+                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+                            : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-90 shadow-blue-100'
+                            }`}
+                        >
+                          ถัดไป <ArrowRight size={20} />
+                        </button>
+                      ) : (
+                        /* เปลี่ยนจาก "ไปขั้นตอนที่ 3" เป็น "ยืนยันและบันทึก" ทันที */
+                        <button
+                          disabled={!confirmedRegions[currentRegion.id]}
+                          onClick={handleSaveToDB}
+                          className={`w-full md:w-auto px-12 py-5 rounded-2xl font-black shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95 ${!confirmedRegions[currentRegion.id]
+                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+                            : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-100 animate-in zoom-in duration-300'
+                            }`}
+                        >
+                          <Save size={22} /> ยืนยันและบันทึกข้อมูล
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
             })()}
           </div>
         )}
-
-        {/* --- STEP 3: Final Data Verification --- */}
-        {currentStep === 3 && (
-          <div className="bg-white p-10 rounded-[40px] shadow-2xl border border-gray-100 animate-in slide-in-from-right duration-500 max-w-5xl mx-auto">
-            {/* --- Header: Report Title --- */}
-            <div className="flex justify-between items-end mb-10 border-b-2 border-gray-50 pb-6">
-              <div>
-                <h2 className="text-2xl md:text-3xl font-black text-gray-800 flex items-center gap-3">
-                  <FileText size={32} className="text-green-500" /> Summary Report
-                </h2>
-                <p className="text-gray-400 font-bold text-[9px] md:text-xs uppercase tracking-[0.3em] mt-2 ml-11">
-                  Final Verification Details
-                </p>
-              </div>
-              <div className="text-right hidden md:block">
-                <span className="bg-green-100 text-green-700 px-4 py-2 rounded-2xl text-xs font-black uppercase tracking-widest shadow-sm">
-                  Status: Ready to Save
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-10">
-              {/* --- Section 1: Core Receipt Data (Grid 3 Columns) --- */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-                {[
-                  {
-                    label: 'ใบเสร็จรับเงิน',
-                    value: confirmedRegions.receiptTaxinvoice === 'correct' ? 'ตรวจสอบพบ' : 'ไม่พบข้อมูล',
-                    status: confirmedRegions.receiptTaxinvoice,
-                    // ✅ ปรับ Origin ตามประเภทใบเสร็จ
-                    origin: receiptType === '2' ? '50% 60%' : '90% 0%',
-                    scale: receiptType === '2' ? 3.5 : 2
-                  },
-                  {
-                    label: 'ทะเบียนรถ',
-                    value: editableFields.plateNo || 'N/A',
-                    status: confirmedRegions.plateNo,
-                    origin: receiptType === '2' ? '50% 80%' : '15% 40%',
-                    scale: receiptType === '2' ? 3.5 : 3.5
-                  },
-                  {
-                    label: 'วันที่ใบเสร็จ',
-                    value: editableFields.transactionDate || 'N/A',
-                    status: confirmedRegions.transactionDate,
-                    origin: receiptType === '2' ? '50% 75%' : '100% 30%',
-                    scale: receiptType === '2' ? 3.5 : 2.5
-                  }
-                ].map((item, idx) => (
-                  <div key={idx} className="bg-gray-50/50 p-6 rounded-[32px] border border-gray-100 relative transition-all hover:bg-white hover:shadow-md">
-                    <div className={`absolute -top-3 right-4 px-3 py-1 rounded-full text-[9px] font-black uppercase shadow-sm ${item.status === 'correct' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
-                      {item.status === 'correct' ? '✓ OK' : '⚠ Missing'}
-                    </div>
-                    <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest block mb-4">{item.label}</label>
-                    <div className="aspect-square rounded-2xl overflow-hidden border-2 border-white bg-gray-900 shadow-sm mb-4">
-                      <img
-                        src={debugImage}
-                        className="w-full h-full object-contain opacity-80"
-                        style={{ transform: `scale(${item.scale})`, transformOrigin: item.origin }}
-                      />
-                    </div>
-                    <p className="text-lg font-black text-gray-800 break-words">{item.value}</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* --- Section 2: EGAT Validation (Full Width) --- */}
-              <div className="p-4 md:p-8 rounded-[32px] md:rounded-[40px] transition-all bg-gray-50/50 border border-gray-100">
-                <div className="flex items-center justify-between mb-4 md:mb-6 px-2">
-                  <label className="text-[10px] md:text-[11px] font-black text-blue-500 uppercase tracking-[0.2em]">
-                    ข้อมูลที่อยู่และเลขภาษี กฟผ.
-                  </label>
-                  <span className={`px-3 py-1 rounded-full text-[9px] md:text-[10px] font-black shadow-sm ${confirmedRegions.egatData === 'correct' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
-                    {confirmedRegions.egatData === 'correct' ? '✓ ok' : '⚠ Incorrect'}
-                  </span>
-                </div>
-
-                {/* ✅ ปรับ Grid: บนมือถือให้เรียงต่อกันเป็นแถวเดียว (Stacked) เพื่อให้ภาพกว้างที่สุด */}
-                <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 md:gap-8 items-center">
-
-                  {/* 🖼️ ภาพ Preview: บนมือถือขยายเต็มกว้างและลดความสูงลงเล็กน้อยเพื่อให้เห็นภาพกว้างขึ้น */}
-                  <div className="aspect-square rounded-2xl overflow-hidden border-2 border-white bg-gray-900 shadow-sm mb-4">
-                    <img
-                      src={debugImage}
-                      className="w-full h-full object-contain opacity-80"
-                      style={{
-                        // ✅ ปรับ Scale ในมือถือให้ลดลงเล็กน้อยเพื่อให้เห็นข้อความรอบข้างชัดขึ้น
-                        transform: receiptType === '2'
-                          ? (window.innerWidth < 768 ? 'scale(3.5)' : 'scale(5)')
-                          : 'scale(2)',
-                        transformOrigin: receiptType === '2' ? '50% 95%' : '20% 20%'
-                      }}
-                    />
-                  </div>
-
-                  {/* 📝 ข้อมูลตัวอักษร: จัดระเบียบใหม่ให้ดูโปร่งบนมือถือ */}
-                  <div className="w-full space-y-4 md:space-y-6">
-                    <div className="bg-white/70 p-4 md:p-5 rounded-2xl border border-blue-50 shadow-sm">
-                      <p className="text-[9px] font-bold text-blue-400 uppercase mb-2">Master Address</p>
-                      <p className="text-sm md:text-[15px] font-black text-slate-700 leading-relaxed">
-                        {masterData.egat_address_th}
-                      </p>
-                    </div>
-
-                    <div className="bg-white/70 p-4 md:p-5 rounded-2xl border border-blue-50 shadow-sm flex items-center justify-between">
-                      <div>
-                        <p className="text-[9px] font-bold text-blue-400 uppercase mb-1">Master Tax ID</p>
-                        <p className="text-sm md:text-[15px] font-black text-slate-600">
-                          {masterData.egat_tax_id}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* --- Section 3: Signature & Authentication (Responsive Grid) --- */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-
-                {/* 🖋️ ลายเซ็น: แสดงเฉพาะใบเสร็จปกติ (Type 1) */}
-                {receiptType === '1' && (
-                  <div className="bg-gray-50/50 p-6 rounded-[32px] border border-gray-100 relative transition-all hover:bg-white hover:shadow-md">
-                    <div className={`absolute -top-3 right-4 px-3 py-1 rounded-full text-[9px] font-black uppercase shadow-sm ${confirmedRegions.signature === 'correct' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
-                      {confirmedRegions.signature === 'correct' ? '✓ OK' : '⚠ Missing'}
-                    </div>
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-4">การลงลายมือชื่อ</label>
-                    <div className="aspect-video md:aspect-square rounded-2xl overflow-hidden border-2 border-white bg-gray-900 shadow-sm mb-4">
-                      <img
-                        src={debugImage}
-                        className="w-full h-full object-contain opacity-80"
-                        style={{ transform: 'scale(2.5)', transformOrigin: '15% 100%' }}
-                      />
-                    </div>
-                    <p className={`text-lg font-black ${confirmedRegions.signature === 'correct' ? 'text-green-600' : 'text-red-600'}`}>
-                      {confirmedRegions.signature === 'correct' ? 'ตรวจพบลายเซ็น' : 'ไม่พบลายเซ็น'}
-                    </p>
-                  </div>
-                )}
-                {/* 📄 ต้นฉบับ: ปรับให้เต็มความกว้างในกรณีที่เป็นสลิปยาว (Type 2) */}
-                <div className={`bg-gray-50/50 p-6 rounded-[32px] border border-gray-100 relative transition-all hover:bg-white hover:shadow-md ${receiptType === '2' ? 'md:col-span-2' : ''}`}>
-                  <div className={`absolute -top-3 right-4 px-3 py-1 rounded-full text-[9px] font-black uppercase shadow-sm ${confirmedRegions.original === 'correct' ? 'bg-cyan-500 text-white' : 'bg-orange-500 text-white'}`}>
-                    {confirmedRegions.original === 'correct' ? '✓ Original' : '⚠ Copy'}
-                  </div>
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-4">ประเภทต้นฉบับ</label>
-                  <div className={`rounded-2xl overflow-hidden border-2 border-white bg-gray-900 shadow-sm mb-4 ${receiptType === '2' ? 'aspect-video' : 'aspect-video md:aspect-square'}`}>
-                    <img
-                      src={debugImage}
-                      className="w-full h-full object-contain opacity-80"
-                      style={{
-                        transform: receiptType === '2' ? 'scale(5)' : 'scale(2)',
-                        transformOrigin: receiptType === '2' ? '50% 98%' : '80% 100%'
-                      }}
-                    />
-                  </div>
-                  <p className={`text-lg font-black ${confirmedRegions.original === 'correct' ? 'text-cyan-600' : 'text-orange-600'}`}>
-                    {confirmedRegions.original === 'correct' ? 'ต้นฉบับ (Original)' : 'สำเนา (Copy)'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* --- 🚀 Action Buttons Group (จัดใหม่ให้สวยงาม) --- */}
-            <div className="mt-16 bg-white/50 backdrop-blur-md p-6 md:p-8 rounded-[40px] border border-gray-100 shadow-sm flex flex-col md:flex-row items-center gap-4">
-
-              {/* 1. Re-Check: เน้นความคลีน */}
-              <button
-                onClick={() => setCurrentStep(2)}
-                className="w-full md:w-auto px-6 py-4 bg-white text-slate-500 rounded-2xl font-bold border border-slate-100 hover:bg-slate-50 transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm"
-              >
-                <ArrowLeft size={18} /> กลับไปตรวจสอบ
-              </button>
-
-              {/* 2. Discard: สีแดงอ่อนดูนุ่มนวลแต่ชัดเจน */}
-              <button
-                onClick={() => setIsDeleteModalOpen(true)}
-                className="w-full md:w-auto px-6 py-4 bg-rose-50 text-rose-500 rounded-2xl font-bold hover:bg-rose-100 transition-all flex items-center justify-center gap-2 active:scale-95"
-              >
-                <Trash2 size={18} /> ยกเลิกรายการ
-              </button>
-              <div className="hidden md:block flex-1"></div>
-
-              {/* 3. Confirm & Save: ปรับ Font และ Padding ใหม่ให้พอดีบรรทัดเดียว */}
-              <button
-                onClick={handleSaveToDB}
-                className="w-full md:w-auto px-10 py-5 bg-emerald-500 text-white rounded-2xl font-black text-lg shadow-xl shadow-emerald-200/50 hover:bg-emerald-600 transition-all active:scale-95 flex items-center justify-center gap-3"
-              >
-                <Save size={22} className="shrink-0" />
-                <span className="whitespace-nowrap">ยืนยันและบันทึก</span>
-              </button>
-            </div>
-
-            {/* ✅ วาง Modal ไว้ล่างสุดตามเดิม (ไม่ต้องแก้ไข) */}
-            <ConfirmDeleteModal
-              isOpen={isDeleteModalOpen}
-              onClose={() => setIsDeleteModalOpen(false)}
-              onConfirm={executeDelete}
-              title="ยกเลิกการสแกน"
-              itemName={`ใบเสร็จเลขที่ ${editableFields.dbReceiptId}`}
-              message="หากคุณเริ่มใหม่ ข้อมูลที่สแกนไว้ในฐานข้อมูลจะถูกลบออกถาวร"
-            />
-          </div>
-        )}
       </div>
 
+      {/* --- delete Modal --- */}
+      <ConfirmDeleteModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={executeDelete}
+        title="ยกเลิกการสแกน"
+        itemName={editableFields.dbReceiptId ? `ใบเสร็จเลขที่ ${editableFields.dbReceiptId}` : "รายการปัจจุบัน"}
+        message="หากคุณยกเลิก ข้อมูลที่สแกนไว้จะถูกลบออกถาวรและต้องเริ่มใหม่อีกครั้ง"
+      />
       {/* --- Cropper Modal --- */}
       {
         showCropper && (
@@ -730,8 +647,8 @@ const UploadReceipt = () => {
                       }}
                       className="w-full p-4 pl-5 rounded-2xl bg-gray-50 text-gray-700 font-bold outline-none border-2 border-transparent focus:border-blue-500 focus:bg-white transition-all appearance-none cursor-pointer shadow-sm"
                     >
-                      <option value={3 / 2}>A4 (3:2)</option>
-                      <option value={1 / 4}>สลิปยาว (1:4)</option>
+                      <option value={3 / 2}>ปตท.</option>
+                      <option value={1 / 4}>บางจาก</option>
                     </select>
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                       <ArrowRight size={18} className="rotate-90" />
@@ -745,13 +662,13 @@ const UploadReceipt = () => {
                     onClick={() => setShowCropper(false)}
                     className="flex-1 md:flex-none px-8 py-4 bg-gray-100 text-gray-600 rounded-2xl font-bold hover:bg-gray-200 transition-all active:scale-95"
                   >
-                    Cancel
+                    ยกเลิก
                   </button>
                   <button
                     onClick={handleCropSave}
                     className="flex-[2] md:flex-none px-12 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all active:scale-95 flex items-center justify-center gap-2"
                   >
-                    <CheckCircle2 size={20} /> Apply Crop
+                    <CheckCircle2 size={20} /> ยืนยัน
                   </button>
                 </div>
               </div>

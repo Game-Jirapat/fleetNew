@@ -30,6 +30,12 @@ module.exports = (sequelize, DataTypes) => {
           key: "user_id",
         },
       },
+      receipt_type: {
+        type: DataTypes.ENUM("1", "2"),
+        allowNull: false,
+        defaultValue: "1",
+        comment: "1: PTT (Standard), 2: Bangchak (Long Slip)"
+      },
       //license_plate_no
       license_plate_no: {
         type: DataTypes.STRING,

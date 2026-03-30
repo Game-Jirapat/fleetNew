@@ -96,6 +96,7 @@ exports.processReceipt = async (req, res) => {
         // ตอนนี้ framed_pic_url จะมีค่าเสมอ (ไม่เป็น URL ใหม่ ก็เป็น URL เดิม)
         const newReceipt = await Receipts.create({
           user_id: userId,
+          receipt_type: receiptType || '1',
           license_plate_no: ocr?.license_plate_no || "Unknown",
           bill_date: billDate,
           og_pic: og_pic_url,
@@ -253,7 +254,7 @@ exports.notifyConfirmedData = async (req, res) => {
   }
 };
 
-// [UPDATE 1] - สำหรับ Admin อัปเดตสถานะ (Approve/Reject) เท่านั้น
+// [UPDATE 1] - สำหรับ Admin อัปเดตสถานะ เท่านั้น
 exports.updateApprovalStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -265,20 +266,25 @@ exports.updateApprovalStatus = async (req, res) => {
 
     if (!receipt) return res.status(404).json({ error: "ไม่พบข้อมูลใบเสร็จ" });
 
+    // ✅ 1. อัปเดตสถานะในฐานข้อมูลตามปกติ
     await receipt.update({ approval });
 
     const user = receipt.users;
-    if (user && user.line_user_id) {
-      const statusThai = approval === 'Approved' ? '✅ อนุมัติแล้ว' : '❌ ไม่ผ่านการอนุมัติ';
 
-      let lineMessage = `📢 แจ้งเตือนผลการตรวจสอบใบเสร็จ\n\n`;
+    // ✅ 2. เพิ่มเงื่อนไข: ส่ง LINE เฉพาะกรณี Rejected เท่านั้น
+    if (user && user.line_user_id && approval === 'Rejected') {
+
+      let lineMessage = `❌ ใบเสร็จของท่านไม่ผ่านการตรวจสอบ\n\n`;
       lineMessage += `🚗 ทะเบียน: ${receipt.license_plate_no}\n`;
-      lineMessage += `📊 สถานะ: ${statusThai}\n`;
 
+      // ใส่หมายเหตุหากมีข้อมูล
       if (comment && comment.trim() !== "") {
-        lineMessage += `💬 หมายเหตุ: ${comment}\n`;
+        lineMessage += `💬 สาเหตุ: ${comment}\n`;
       }
-      lineMessage += `\n📅 วันที่: ${new Date().toLocaleDateString('th-TH')}`;
+
+      lineMessage += `\n📅 วันที่ตรวจสอบ: ${new Date().toLocaleDateString('th-TH')}`;
+      lineMessage += `\n\nกรุณาตรวจสอบและอัปโหลดใหม่อีกครั้งครับ`;
+
       try {
         await lineClient.pushMessage(user.line_user_id, {
           type: 'text',
@@ -287,11 +293,12 @@ exports.updateApprovalStatus = async (req, res) => {
       } catch (lineErr) {
         console.error("LINE Push Error:", lineErr.message);
       }
-    } else {
-      console.warn("⚠️ Warning: User has no LINE ID, cannot send notification.");
+    } else if (approval === 'Approved') {
+      // Log ไว้ดูในฝั่ง Server เท่านั้นว่าอนุมัติแล้วแต่ไม่ส่ง LINE
+      console.log(`✅ Receipt #${id} Approved - skipping LINE notification.`);
     }
 
-    res.status(200).json({ message: "อัปเดตสถานะและส่งการแจ้งเตือนเรียบร้อยแล้ว" });
+    res.status(200).json({ message: "ดำเนินการเรียบร้อยแล้ว" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

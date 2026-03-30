@@ -6,10 +6,10 @@ import api from '../api/axios';
 const ReceiptDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-
+    const [isEditing, setIsEditing] = useState(false);
     // --- States ---
     const [editableFields, setEditableFields] = useState({
-        plateNo: '', transactionDate: '', egatAddress: '', egatTaxId: ''
+        plateNo: '', transactionDate: '', receipt_type: ''
     });
     const [ogPicUrl, setOgPicUrl] = useState(null);
     const [framedPicUrl, setFramedPicUrl] = useState(null);
@@ -28,8 +28,7 @@ const ReceiptDetail = () => {
                     dbReceiptId: data.receipt_id,
                     plateNo: data.license_plate_no || '',
                     transactionDate: data.bill_date ? new Date(data.bill_date).toISOString().split('T')[0] : '',
-                    egatAddress: data.egat_address || '', // สมมติว่ามี field นี้ใน DB
-                    egatTaxId: data.egat_tax_id || ''
+                    receipt_type: data.receipt_type,
                 });
                 setOgPicUrl(data.og_pic);
                 setFramedPicUrl(data.framed_pic);
@@ -45,16 +44,17 @@ const ReceiptDetail = () => {
         fetchData();
     }, [id]);
 
+    if (isLoading) return <div className="p-10 text-center font-black text-blue-600 animate-pulse">กำลังโหลดข้อมูล...</div>;
+
     const handleUpdate = async () => {
         setIsSaving(true);
         try {
-            // ✅ ใช้เส้น /data ที่เราแยกไว้ใน Backend
             await api.put(`/receipts/${id}/data`, {
                 license_plate_no: editableFields.plateNo,
                 bill_date: editableFields.transactionDate
             });
             alert('อัปเดตข้อมูลสำเร็จ! ✅');
-            navigate('/admin/receipts');
+            setIsEditing(false); // ✅ ปิดโหมดแก้ไขเมื่อบันทึกสำเร็จ
         } catch (err) {
             alert('Error: ' + err.message);
         } finally {
@@ -70,27 +70,32 @@ const ReceiptDetail = () => {
                 {/* --- Header Section --- */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
                     <div className="flex items-center gap-4">
-                        <button
-                            onClick={() => navigate(-1)}
-                            className="p-3 bg-white hover:bg-gray-100 rounded-2xl text-gray-400 shadow-sm transition-all active:scale-90"
-                        >
-                            <ArrowLeft size={24} />
-                        </button>
+                        <button onClick={() => navigate(-1)} className="p-3 bg-white hover:bg-gray-100 rounded-2xl text-gray-400 shadow-sm transition-all"><ArrowLeft size={24} /></button>
                         <div>
-                            <h1 className="text-2xl md:text-3xl font-black text-gray-800">Edit Receipt</h1>
-                            <p className="text-gray-400 font-bold text-[10px] md:text-xs uppercase tracking-[0.2em] mt-1">
-                                จัดการและแก้ไขข้อมูลใบเสร็จ #{id}
-                            </p>
+                            <h1 className="text-2xl md:text-3xl font-black text-gray-800">Receipt Details</h1>
+                            <p className="text-gray-400 font-bold text-[10px] md:text-xs uppercase tracking-[0.2em] mt-1">ใบเสร็จ #{id}</p>
                         </div>
                     </div>
 
-                    <button
-                        onClick={handleUpdate}
-                        disabled={isSaving}
-                        className="w-full md:w-auto px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black shadow-xl shadow-emerald-100 transition-all active:scale-95 flex items-center justify-center gap-2"
-                    >
-                        <Save size={22} /> {isSaving ? 'Saving...' : 'Update & Save Data'}
-                    </button>
+                    {!isEditing ? (
+                        <button
+                            onClick={() => setIsEditing(true)}
+                            className="w-full md:w-auto px-8 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg hover:bg-blue-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+                        >
+                            Edit Details
+                        </button>
+                    ) : (
+                        <div className="flex gap-2 w-full md:w-auto">
+                            <button onClick={() => setIsEditing(false)} className="px-6 py-4 bg-gray-100 text-gray-500 rounded-2xl font-black">Cancel</button>
+                            <button
+                                onClick={handleUpdate}
+                                disabled={isSaving}
+                                className="flex-1 md:flex-none px-8 py-4 bg-emerald-500 text-white rounded-2xl font-black shadow-xl hover:bg-emerald-600 transition-all flex items-center justify-center gap-2"
+                            >
+                                <Save size={22} /> {isSaving ? 'Saving...' : 'Save Changes'}
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -103,29 +108,41 @@ const ReceiptDetail = () => {
                                 <FileText size={18} /> OCR Result Details
                             </h2>
 
-                            {/* 🚗 Plate No */}
+                            {/* 🚗 Plate No Section */}
                             <div className="space-y-2">
                                 <label className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
                                     <Hash size={14} /> 1. ทะเบียนรถ (License Plate)
                                 </label>
-                                <input
-                                    className="w-full p-5 bg-gray-50 border-2 border-transparent rounded-2xl outline-none font-black text-xl text-gray-700 focus:border-blue-500 focus:bg-white transition-all shadow-inner"
-                                    value={editableFields.plateNo}
-                                    onChange={(e) => setEditableFields({ ...editableFields, plateNo: e.target.value })}
-                                />
+                                {isEditing ? (
+                                    <input
+                                        className="w-full p-5 bg-gray-50 border-2 border-blue-500 rounded-2xl outline-none font-black text-xl text-gray-700 shadow-inner animate-in zoom-in duration-200"
+                                        value={editableFields.plateNo}
+                                        onChange={(e) => setEditableFields({ ...editableFields, plateNo: e.target.value })}
+                                    />
+                                ) : (
+                                    <div className="p-5 bg-gray-50/50 rounded-2xl font-black text-2xl text-slate-800 border-2 border-transparent">
+                                        {editableFields.plateNo || "N/A"}
+                                    </div>
+                                )}
                             </div>
 
-                            {/* 📅 Date */}
+                            {/* 📅 Date Section */}
                             <div className="space-y-2">
                                 <label className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
                                     <Calendar size={14} /> 2. วันที่ในใบเสร็จ (Bill Date)
                                 </label>
-                                <input
-                                    type="date"
-                                    className="w-full p-5 bg-gray-50 border-2 border-transparent rounded-2xl outline-none font-black text-xl text-gray-700 focus:border-blue-500 focus:bg-white transition-all shadow-inner"
-                                    value={editableFields.transactionDate}
-                                    onChange={(e) => setEditableFields({ ...editableFields, transactionDate: e.target.value })}
-                                />
+                                {isEditing ? (
+                                    <input
+                                        type="date"
+                                        className="w-full p-5 bg-gray-50 border-2 border-blue-500 rounded-2xl outline-none font-black text-xl text-gray-700 shadow-inner animate-in zoom-in duration-200"
+                                        value={editableFields.transactionDate}
+                                        onChange={(e) => setEditableFields({ ...editableFields, transactionDate: e.target.value })}
+                                    />
+                                ) : (
+                                    <div className="p-5 bg-gray-50/50 rounded-2xl font-black text-2xl text-slate-800 border-2 border-transparent">
+                                        {editableFields.transactionDate ? new Date(editableFields.transactionDate).toLocaleDateString('th-TH') : "N/A"}
+                                    </div>
+                                )}
                             </div>
 
                             <hr className="border-gray-50" />
@@ -136,11 +153,27 @@ const ReceiptDetail = () => {
                                     <label className="flex items-center gap-2 text-[10px] font-black text-blue-400 uppercase tracking-widest">
                                         <MapPin size={14} /> 3. EGAT Address
                                     </label>
-                                    <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter">Verified</span>
                                 </div>
-                                <p className="text-sm font-black text-slate-600 leading-relaxed bg-white/60 p-4 rounded-xl border border-blue-50 shadow-sm">
-                                    {masterData?.egat_address_th}
-                                </p>
+                                {(() => {
+                                    switch (editableFields.receipt_type) {
+                                        case '1': // ✅ ใบเสร็จ ปตท. (ภาษาไทย)
+                                            return (
+                                                <div className="animate-in fade-in duration-300">
+                                                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">ที่อยู่ กฟผ. (TH)</p>
+                                                    <p className="text-sm font-black text-gray-700 leading-tight">{masterData.egat_address_th}</p>
+                                                </div>
+                                            );
+                                        case '2': // ✅ ใบเสร็จ บางจาก (ภาษาอังกฤษ)
+                                            return (
+                                                <div className="animate-in fade-in duration-300">
+                                                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">EGAT Address (EN)</p>
+                                                    <p className="text-sm font-black text-gray-700 leading-tight italic">{masterData.egat_address_eng}</p>
+                                                </div>
+                                            );
+                                        default:
+                                            return null;
+                                    }
+                                })()}
                             </div>
 
                             {/* 💳 Tax ID Comparison */}
@@ -152,9 +185,6 @@ const ReceiptDetail = () => {
                                     <p className="text-lg font-black text-emerald-700 tracking-wider">
                                         {masterData?.egat_tax_id}
                                     </p>
-                                </div>
-                                <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-emerald-500">
-                                    <CheckCircle2 size={24} />
                                 </div>
                             </div>
                         </div>
